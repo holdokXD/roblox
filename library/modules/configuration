@@ -1,0 +1,234 @@
+--[[
+WindUI Configuration Module
+A module for saving/loading WindUI themes and settings
+]]
+
+local HttpService = game:GetService("HttpService")
+
+local WindUIConfig = {}
+WindUIConfig.__index = WindUIConfig
+
+function WindUIConfig.new(uiLibrary, windowInstance)
+    local self = setmetatable({}, WindUIConfig)
+    
+    self.WindUI = uiLibrary
+    self.Window = windowInstance
+    self.folderPath = "WindUI"
+    
+    -- Create config folder if it doesn't exist
+    if not isfolder(self.folderPath) then
+        makefolder(self.folderPath)
+    end
+    
+    return self
+end
+
+function WindUIConfig:SaveFile(fileName, data)
+    local filePath = self.folderPath .. "/" .. fileName .. ".json"
+    local jsonData = HttpService:JSONEncode(data)
+    writefile(filePath, jsonData)
+end
+
+function WindUIConfig:LoadFile(fileName)
+    local filePath = self.folderPath .. "/" .. fileName .. ".json"
+    if isfile(filePath) then
+        local jsonData = readfile(filePath)
+        return HttpService:JSONDecode(jsonData)
+    end
+    return nil
+end
+
+function WindUIConfig:ListFiles()
+    local files = {}
+    for _, file in ipairs(listfiles(self.folderPath)) do
+        local fileName = file:match("([^/]+)%.json$")
+        if fileName then
+            table.insert(files, fileName)
+        end
+    end
+    return files
+end
+
+function WindUIConfig:CreateWindowTab(tabs)
+    local WindowTab = tabs:AddTab("Window")
+    
+    -- Window Settings Section
+    WindowTab:AddSection("Window")
+    
+    local themeValues = {}
+    for name, _ in pairs(self.WindUI:GetThemes()) do
+        table.insert(themeValues, name)
+    end
+    
+    local themeDropdown = WindowTab:Dropdown({
+        Title = "Select Theme",
+        Multi = false,
+        AllowNone = false,
+        Value = nil,
+        Values = themeValues,
+        Callback = function(theme)
+            self.WindUI:SetTheme(theme)
+        end
+    })
+    themeDropdown:Select(self.WindUI:GetCurrentTheme())
+    
+    local ToggleTransparency = WindowTab:Toggle({
+        Title = "Toggle Window Transparency",
+        Callback = function(e)
+            self.Window:ToggleTransparency(e)
+        end,
+        Value = self.WindUI:GetTransparency()
+    })
+    
+    -- Save Section
+    WindowTab:AddSection("Save")
+    
+    local fileNameInput = ""
+    WindowTab:Input({
+        Title = "Write File Name",
+        PlaceholderText = "Enter file name",
+        Callback = function(text)
+            fileNameInput = text
+        end
+    })
+    
+    WindowTab:Button({
+        Title = "Save File",
+        Callback = function()
+            if fileNameInput ~= "" then
+                self:SaveFile(fileNameInput, { 
+                    Transparent = self.WindUI:GetTransparency(), 
+                    Theme = self.WindUI:GetCurrentTheme() 
+                })
+            end
+        end
+    })
+    
+    -- Load Section
+    WindowTab:AddSection("Load")
+    
+    local filesDropdown
+    local files = self:ListFiles()
+    
+    filesDropdown = WindowTab:Dropdown({
+        Title = "Select File",
+        Multi = false,
+        AllowNone = true,
+        Values = files,
+        Callback = function(selectedFile)
+            fileNameInput = selectedFile
+        end
+    })
+    
+    WindowTab:Button({
+        Title = "Load File",
+        Callback = function()
+            if fileNameInput ~= "" then
+                local data = self:LoadFile(fileNameInput)
+                if data then
+                    self.WindUI:Notify({
+                        Title = "File Loaded",
+                        Content = "Loaded data: " .. HttpService:JSONEncode(data),
+                        Duration = 5,
+                    })
+                    if data.Transparent then 
+                        self.Window:ToggleTransparency(data.Transparent)
+                        ToggleTransparency:SetValue(data.Transparent)
+                    end
+                    if data.Theme then self.WindUI:SetTheme(data.Theme) end
+                end
+            end
+        end
+    })
+    
+    WindowTab:Button({
+        Title = "Overwrite File",
+        Callback = function()
+            if fileNameInput ~= "" then
+                self:SaveFile(fileNameInput, { 
+                    Transparent = self.WindUI:GetTransparency(), 
+                    Theme = self.WindUI:GetCurrentTheme() 
+                })
+            end
+        end
+    })
+    
+    WindowTab:Button({
+        Title = "Refresh List",
+        Callback = function()
+            filesDropdown:Refresh(self:ListFiles())
+        end
+    })
+end
+
+function WindUIConfig:CreateThemeTab(tabs)
+    local CreateThemeTab = tabs:AddTab("Create Theme")
+    
+    local currentThemeName = self.WindUI:GetCurrentTheme()
+    local themes = self.WindUI:GetThemes()
+    
+    local ThemeAccent = themes[currentThemeName].Accent
+    local ThemeOutline = themes[currentThemeName].Outline
+    local ThemeText = themes[currentThemeName].Text
+    local ThemePlaceholderText = themes[currentThemeName].PlaceholderText
+    
+    local function updateTheme()
+        self.WindUI:AddTheme({
+            Name = currentThemeName,
+            Accent = ThemeAccent,
+            Outline = ThemeOutline,
+            Text = ThemeText,
+            PlaceholderText = ThemePlaceholderText
+        })
+        self.WindUI:SetTheme(currentThemeName)
+    end
+    
+    CreateThemeTab:Input({
+        Title = "Theme Name",
+        Value = currentThemeName,
+        Callback = function(name)
+            currentThemeName = name
+        end
+    })
+    
+    CreateThemeTab:Colorpicker({
+        Title = "Background Color",
+        Default = Color3.fromHex(ThemeAccent),
+        Callback = function(color)
+            ThemeAccent = color:ToHex()
+        end
+    })
+    
+    CreateThemeTab:Colorpicker({
+        Title = "Outline Color",
+        Default = Color3.fromHex(ThemeOutline),
+        Callback = function(color)
+            ThemeOutline = color:ToHex()
+        end
+    })
+    
+    CreateThemeTab:Colorpicker({
+        Title = "Text Color",
+        Default = Color3.fromHex(ThemeText),
+        Callback = function(color)
+            ThemeText = color:ToHex()
+        end
+    })
+    
+    CreateThemeTab:Colorpicker({
+        Title = "Placeholder Text Color",
+        Default = Color3.fromHex(ThemePlaceholderText),
+        Callback = function(color)
+            ThemePlaceholderText = color:ToHex()
+        end
+    })
+    
+    CreateThemeTab:Button({
+        Title = "Update Theme",
+        Callback = function()
+            updateTheme()
+        end
+    })
+end
+
+return WindUIConfig
