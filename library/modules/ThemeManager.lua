@@ -44,7 +44,7 @@ do
     ThemeManager.BuiltInThemes = {
         ["Default"] = {
             1,
-            -- ИСПРАВЛЕНО: Добавлен FontFace: "SourceSans" в JSON, чтобы избежать сброса на "Code".
+            -- Убеждаемся, что SourceSans установлен
             httpService:JSONDecode(
                 [[{"FontColor":"ffffff","MainColor":"000000","AccentColor":"ff0000","BackgroundColor":"000000","OutlineColor":"000000", "FontFace":"SourceSans"}]]
             ),
@@ -206,7 +206,7 @@ do
             return
         end
 
-        -- 'data' может быть либо таблицей {index, scheme} для встроенных, либо просто 'scheme' для кастомных
+        -- 'data' can be either {index, scheme} for built-in, or just 'scheme' for custom
         local scheme = (typeof(data[2]) == "table") and data[2] or data 
 
         for idx, val in pairs(scheme) do
@@ -275,10 +275,10 @@ do
         end
 
         if isDefault then
-            -- Если это встроенная тема, используем Dropdown
+            -- If it's a built-in theme, use Dropdown
             self.Library.Options.ThemeManager_ThemeList:SetValue(theme)
         else
-            -- Если это кастомная тема, применяем ее напрямую
+            -- If it's a custom theme, apply it directly
             self:ApplyTheme(theme)
         end
     end
@@ -314,7 +314,7 @@ do
             FinalTheme["FontFace"] = theme["FontFace"]
             LibraryScheme["Font"] = Font.fromEnum(Enum.Font[theme["FontFace"]])
         else
-            -- ИСПРАВЛЕНО: Резервное значение теперь SourceSans
+            -- Fallback to SourceSans
             FinalTheme["FontFace"] = "SourceSans"
             LibraryScheme["Font"] = Font.fromEnum(Enum.Font.SourceSans)
         end
@@ -528,4 +528,11 @@ do
     end
 
     function ThemeManager:ApplyToGroupbox(groupbox)
-        assert(self.Library, "Must set ThemeManager.Li
+        assert(self.Library, "Must set ThemeManager.Library first!")
+        self:CreateThemeManager(groupbox)
+    end
+
+    ThemeManager:BuildFolderTree()
+                end
+                
+                getgenv().ObsidianThemeManager = ThemeManager
