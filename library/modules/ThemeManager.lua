@@ -42,10 +42,11 @@ do
     ThemeManager.Library = nil
     ThemeManager.AppliedToTab = false
     ThemeManager.BuiltInThemes = {
+        -- ИЗМЕНЕНО: Обновлено до черного фона/основного цвета и красного акцента
         ["Default"] = {
             1,
             httpService:JSONDecode(
-                [[{"FontColor":"ffffff","MainColor":"191919","AccentColor":"7d55ff","BackgroundColor":"0f0f0f","OutlineColor":"282828"}]]
+                [[{"FontColor":"ffffff","MainColor":"000000","AccentColor":"ff0000","BackgroundColor":"000000","OutlineColor":"000000"}]]
             ),
         },
         ["BBot"] = {
