@@ -1,13 +1,14 @@
 local cloneref = (cloneref or clonereference or function(instance: any)
     return instance
 end)
-
--- HttpService kept for compatibility, but not used for theme logic anymore.
-local httpService = cloneref(game:GetService("HttpService")) 
+local httpService = cloneref(game:GetService("HttpService"))
+local httprequest = (syn and syn.request) or request or http_request or (http and http.request)
+local getassetfunc = getcustomasset or getsynasset
 local isfolder, isfile, listfiles = isfolder, isfile, listfiles
 
 if typeof(copyfunction) == "function" then
     -- Fix is_____ functions for shitsploits, those functions should never error, only return a boolean.
+
     local isfolder_copy, isfile_copy, listfiles_copy =
         copyfunction(isfolder), copyfunction(isfile), copyfunction(listfiles)
 
@@ -33,25 +34,43 @@ if typeof(copyfunction) == "function" then
     end
 end
 
--- Renamed ThemeManager to SettingsManager as its function is now generalized settings control.
-local SettingsManager = {}
+local ThemeManager = {}
 do
-    SettingsManager.Folder = "ObsidianLibSettings"
-    SettingsManager.Library = nil
-    SettingsManager.AppliedToTab = false
+    ThemeManager.Folder = "ObsidianLibSettings"
+    -- if not isfolder(ThemeManager.Folder) then makefolder(ThemeManager.Folder) end
 
-    function SettingsManager:SetLibrary(library)
+    ThemeManager.Library = nil
+    ThemeManager.AppliedToTab = false
+    ThemeManager.BuiltInThemes = {
+        ["Default"] = {
+            1,
+            httpService:JSONDecode(
+                [[{"MainColor":"000000","AccentColor":"ff0000","OutlineColor":"000000","BackgroundColor":"000000","FontColor":"ffffff"}]]
+            ),
+        },
+    }
+
+    function ThemeManager:SetLibrary(library)
         self.Library = library
     end
 
-    --// Folder Management \\--
-    function SettingsManager:GetPaths()
-        -- Only the root folder is necessary
-        return { self.Folder }
+    --// Folders \\--
+    function ThemeManager:GetPaths()
+        local paths = {}
+
+        local parts = self.Folder:split("/")
+        for idx = 1, #parts do
+            paths[#paths + 1] = table.concat(parts, "/", 1, idx)
+        end
+
+        paths[#paths + 1] = self.Folder .. "/themes"
+
+        return paths
     end
 
-    function SettingsManager:BuildFolderTree()
+    function ThemeManager:BuildFolderTree()
         local paths = self:GetPaths()
+
         for i = 1, #paths do
             local str = paths[i]
             if isfolder(str) then
@@ -61,96 +80,351 @@ do
         end
     end
 
-    function SettingsManager:CheckFolderTree()
+    function ThemeManager:CheckFolderTree()
         if isfolder(self.Folder) then
             return
         end
         self:BuildFolderTree()
+
         task.wait(0.1)
     end
 
-    function SettingsManager:SetFolder(folder)
+    function ThemeManager:SetFolder(folder)
         self.Folder = folder
         self:BuildFolderTree()
     end
 
-    --// Update Settings \\--
-    -- This function now only handles color updates. Font logic is in main_script.lua
-    function SettingsManager:UpdateColors()
-        -- Ensure Library and Options exist before proceeding
-        if not self.Library or not self.Library.Options then
+    --// Apply, Update theme \\--
+    function ThemeManager:ApplyTheme(theme)
+        local customThemeData = self:GetCustomTheme(theme)
+        local data = customThemeData or self.BuiltInThemes[theme]
+
+        if not data then
             return
         end
 
-        local options = { "FontColor", "MainColor", "AccentColor", "BackgroundColor", "OutlineColor" }
+        local scheme = data[2]
+        for idx, val in pairs(customThemeData or scheme) do
+            if idx == "VideoLink" then
+                continue
+            elseif idx == "FontFace" then
+                self.Library:SetFont(Enum.Font[val])
 
-        -- 1. Update Scheme colors from Options
+                if self.Library.Options[idx] then
+                    self.Library.Options[idx]:SetValue(val)
+                end
+            else
+                self.Library.Scheme[idx] = Color3.fromHex(val)
+
+                if self.Library.Options[idx] then
+                    self.Library.Options[idx]:SetValueRGB(Color3.fromHex(val))
+                end
+            end
+        end
+
+        self:ThemeUpdate()
+    end
+
+    function ThemeManager:ThemeUpdate()
+        local options = { "FontColor", "MainColor", "AccentColor", "BackgroundColor", "OutlineColor" }
         for i, field in pairs(options) do
-            if self.Library.Options[field] then
+            if self.Library.Options and self.Library.Options[field] then
                 self.Library.Scheme[field] = self.Library.Options[field].Value
             end
         end
 
-        -- 2. Apply changes to GUI
         self.Library:UpdateColorsUsingRegistry()
     end
 
-    -- Function to load initial settings (using the library's current scheme)
-    function SettingsManager:LoadInitialSettings()
-        if not self.Library or not self.Library.Options then return end
-        
-        -- Apply the colors set in the options to the library's scheme
-        self:UpdateColors() 
+    --// Get, Load, Save, Delete, Refresh \\--
+    function ThemeManager:GetCustomTheme(file)
+        local path = self.Folder .. "/themes/" .. file .. ".json"
+        if not isfile(path) then
+            return nil
+        end
+
+        local data = readfile(path)
+        local success, decoded = pcall(httpService.JSONDecode, httpService, data)
+
+        if not success then
+            return nil
+        end
+
+        return decoded
     end
 
+    function ThemeManager:LoadDefault()
+        local theme = "Default"
+        local content = isfile(self.Folder .. "/themes/default.txt") and readfile(self.Folder .. "/themes/default.txt")
 
-    --// GUI Creation - Simplified to only color settings \\--
-    function SettingsManager:CreateColorSettings(groupbox)
-        assert(self.Library, "Must set SettingsManager.Library first!")
-        
-        local scheme = self.Library.Scheme
+        local isDefault = true
+        if content then
+            if self.BuiltInThemes[content] then
+                theme = content
+            elseif self:GetCustomTheme(content) then
+                theme = content
+                isDefault = false
+            end
+        elseif self.BuiltInThemes[self.DefaultTheme] then
+            theme = self.DefaultTheme
+        end
 
-        -- Add color pickers
+        if isDefault then
+            -- Note: We manually apply the FontFace default here since the BuiltInThemes JSON only stores colors.
+            self.Library.Options.FontFace:SetValue("SourceSans")
+            self:ApplyTheme(theme)
+        else
+            self:ApplyTheme(theme)
+        end
+    end
+
+    function ThemeManager:SaveDefault(theme)
+        writefile(self.Folder .. "/themes/default.txt", theme)
+    end
+
+    function ThemeManager:SetDefaultTheme(theme)
+        assert(self.Library, "Must set ThemeManager.Library first!")
+        assert(not self.AppliedToTab, "Cannot set default theme after applying ThemeManager to a tab!")
+
+        local FinalTheme = {}
+        local LibraryScheme = {}
+        local fields = { "FontColor", "MainColor", "AccentColor", "BackgroundColor", "OutlineColor" }
+        for _, field in pairs(fields) do
+            if typeof(theme[field]) == "Color3" then
+                FinalTheme[field] = "#" .. theme[field]:ToHex()
+                LibraryScheme[field] = theme[field]
+            elseif typeof(theme[field]) == "string" then
+                FinalTheme[field] = if theme[field]:sub(1, 1) == "#" then theme[field] else ("#" .. theme[field])
+                LibraryScheme[field] = Color3.fromHex(theme[field])
+            else
+                FinalTheme[field] = ThemeManager.BuiltInThemes["Default"][2][field]
+                LibraryScheme[field] = Color3.fromHex(ThemeManager.BuiltInThemes["Default"][2][field])
+            end
+        end
+
+        if typeof(theme["FontFace"]) == "EnumItem" then
+            FinalTheme["FontFace"] = theme["FontFace"].Name
+            LibraryScheme["Font"] = Font.fromEnum(theme["FontFace"])
+        elseif typeof(theme["FontFace"]) == "string" then
+            FinalTheme["FontFace"] = theme["FontFace"]
+            LibraryScheme["Font"] = Font.fromEnum(Enum.Font[theme["FontFace"]])
+        else
+            FinalTheme["FontFace"] = "SourceSans" -- Default to SourceSans as requested
+            LibraryScheme["Font"] = Font.fromEnum(Enum.Font.SourceSans)
+        end
+
+        for _, field in pairs({ "Red", "Dark", "White" }) do
+            LibraryScheme[field] = self.Library.Scheme[field]
+        end
+
+        self.Library.Scheme = LibraryScheme
+        self.BuiltInThemes["Default"] = { 1, FinalTheme }
+
+        self.Library:UpdateColorsUsingRegistry()
+    end
+
+    function ThemeManager:SaveCustomTheme(file)
+        if file:gsub(" ", "") == "" then
+            return self.Library:Notify("Invalid file name for theme (empty)", 3)
+        end
+
+        local theme = {}
+        local fields = { "FontColor", "MainColor", "AccentColor", "BackgroundColor", "OutlineColor" }
+
+        for _, field in pairs(fields) do
+            theme[field] = self.Library.Options[field].Value:ToHex()
+        end
+        theme["FontFace"] = self.Library.Options["FontFace"].Value
+
+        writefile(self.Folder .. "/themes/" .. file .. ".json", httpService:JSONEncode(theme))
+    end
+
+    function ThemeManager:Delete(name)
+        if not name then
+            return false, "no config file is selected"
+        end
+
+        local file = self.Folder .. "/themes/" .. name .. ".json"
+        if not isfile(file) then
+            return false, "invalid file"
+        end
+
+        local success = pcall(delfile, file)
+        if not success then
+            return false, "delete file error"
+        end
+
+        return true
+    end
+
+    function ThemeManager:ReloadCustomThemes()
+        local list = listfiles(self.Folder .. "/themes")
+
+        local out = {}
+        for i = 1, #list do
+            local file = list[i]
+            if file:sub(-5) == ".json" then
+                -- i hate this but it has to be done ...
+
+                local pos = file:find(".json", 1, true)
+                local start = pos
+
+                local char = file:sub(pos, pos)
+                while char ~= "/" and char ~= "\\" and char ~= "" do
+                    pos = pos - 1
+                    char = file:sub(pos, pos)
+                end
+
+                if char == "/" or char == "\\" then
+                    table.insert(out, file:sub(pos + 1, start - 1))
+                end
+            end
+        end
+
+        return out
+    end
+
+    --// GUI \\--
+    function ThemeManager:CreateThemeManager(groupbox)
         groupbox
             :AddLabel("Background color")
-            :AddColorPicker("BackgroundColor", { Default = scheme.BackgroundColor })
-        groupbox:AddLabel("Main color"):AddColorPicker("MainColor", { Default = scheme.MainColor })
-        groupbox:AddLabel("Accent color"):AddColorPicker("AccentColor", { Default = scheme.AccentColor })
+            :AddColorPicker("BackgroundColor", { Default = self.Library.Scheme.BackgroundColor })
+        groupbox:AddLabel("Main color"):AddColorPicker("MainColor", { Default = self.Library.Scheme.MainColor })
+        groupbox:AddLabel("Accent color"):AddColorPicker("AccentColor", { Default = self.Library.Scheme.AccentColor })
         groupbox
             :AddLabel("Outline color")
-            :AddColorPicker("OutlineColor", { Default = scheme.OutlineColor })
-        groupbox:AddLabel("Font color"):AddColorPicker("FontColor", { Default = scheme.FontColor })
+            :AddColorPicker("OutlineColor", { Default = self.Library.Scheme.OutlineColor })
+        groupbox:AddLabel("Font color"):AddColorPicker("FontColor", { Default = self.Library.Scheme.FontColor })
+        groupbox:AddDropdown("FontFace", {
+            Text = "Font Face",
+            Default = "SourceSans", -- Changed default to SourceSans
+            Values = { "BuilderSans", "Code", "Fantasy", "Gotham", "Jura", "Roboto", "RobotoMono", "SourceSans" },
+        })
 
-        self.AppliedToTab = true
-        
-        -- Handlers for continuous updating
-        local function UpdateColorsHandler()
-            self:UpdateColors()
+        local ThemesArray = {}
+        for Name, Theme in pairs(self.BuiltInThemes) do
+            table.insert(ThemesArray, Name)
         end
-        
-        self.Library.Options.BackgroundColor:OnChanged(UpdateColorsHandler)
-        self.Library.Options.MainColor:OnChanged(UpdateColorsHandler)
-        self.Library.Options.AccentColor:OnChanged(UpdateColorsHandler)
-        self.Library.Options.OutlineColor:OnChanged(UpdateColorsHandler)
-        self.Library.Options.FontColor:OnChanged(UpdateColorsHandler)
-        
-        self:LoadInitialSettings()
+
+        table.sort(ThemesArray, function(a, b)
+            return self.BuiltInThemes[a][1] < self.BuiltInThemes[b][1]
+        end)
+
+        groupbox:AddDivider()
+
+        groupbox:AddDropdown("ThemeManager_ThemeList", { Text = "Theme list", Values = ThemesArray, Default = 1 })
+        groupbox:AddButton("Set as default", function()
+            self:SaveDefault(self.Library.Options.ThemeManager_ThemeList.Value)
+            self.Library:Notify(
+                string.format("Set default theme to %q", self.Library.Options.ThemeManager_ThemeList.Value)
+            )
+        end)
+
+        self.Library.Options.ThemeManager_ThemeList:OnChanged(function()
+            self:ApplyTheme(self.Library.Options.ThemeManager_ThemeList.Value)
+        end)
+
+        groupbox:AddDivider()
+
+        groupbox:AddInput("ThemeManager_CustomThemeName", { Text = "Custom theme name" })
+        groupbox:AddButton("Create theme", function()
+            self:SaveCustomTheme(self.Library.Options.ThemeManager_CustomThemeName.Value)
+
+            self.Library.Options.ThemeManager_CustomThemeList:SetValues(self:ReloadCustomThemes())
+            self.Library.Options.ThemeManager_CustomThemeList:SetValue(nil)
+        end)
+
+        groupbox:AddDivider()
+
+        groupbox:AddDropdown(
+            "ThemeManager_CustomThemeList",
+            { Text = "Custom themes", Values = self:ReloadCustomThemes(), AllowNull = true, Default = 1 }
+        )
+        groupbox:AddButton("Load theme", function()
+            local name = self.Library.Options.ThemeManager_CustomThemeList.Value
+
+            self:ApplyTheme(name)
+            self.Library:Notify(string.format("Loaded theme %q", name))
+        end)
+        groupbox:AddButton("Overwrite theme", function()
+            local name = self.Library.Options.ThemeManager_CustomThemeList.Value
+
+            self:SaveCustomTheme(name)
+            self.Library:Notify(string.format("Overwrote config %q", name))
+        end)
+        groupbox:AddButton("Delete theme", function()
+            local name = self.Library.Options.ThemeManager_CustomThemeList.Value
+
+            local success, err = self:Delete(name)
+            if not success then
+                return self.Library:Notify("Failed to delete theme: " .. err)
+            end
+
+            self.Library:Notify(string.format("Deleted theme %q", name))
+            self.Library.Options.ThemeManager_CustomThemeList:SetValues(self:ReloadCustomThemes())
+            self.Library.Options.ThemeManager_CustomThemeList:SetValue(nil)
+        end)
+        groupbox:AddButton("Refresh list", function()
+            self.Library.Options.ThemeManager_CustomThemeList:SetValues(self:ReloadCustomThemes())
+            self.Library.Options.ThemeManager_CustomThemeList:SetValue(nil)
+        end)
+        groupbox:AddButton("Set as default", function()
+            if
+                self.Library.Options.ThemeManager_CustomThemeList.Value ~= nil
+                and self.Library.Options.ThemeManager_CustomThemeList.Value ~= ""
+            then
+                self:SaveDefault(self.Library.Options.ThemeManager_CustomThemeList.Value)
+                self.Library:Notify(
+                    string.format("Set default theme to %q", self.Library.Options.ThemeManager_CustomThemeList.Value)
+                )
+            end
+        end)
+        groupbox:AddButton("Reset default", function()
+            local success = pcall(delfile, self.Folder .. "/themes/default.txt")
+            if not success then
+                return self.Library:Notify("Failed to reset default: delete file error")
+            end
+
+            self.Library:Notify("Set default theme to nothing")
+            self.Library.Options.ThemeManager_CustomThemeList:SetValues(self:ReloadCustomThemes())
+            self.Library.Options.ThemeManager_CustomThemeList:SetValue(nil)
+        end)
+
+        self:LoadDefault()
+        self.AppliedToTab = true
+
+        local function UpdateTheme()
+            self:ThemeUpdate()
+        end
+        self.Library.Options.BackgroundColor:OnChanged(UpdateTheme)
+        self.Library.Options.MainColor:OnChanged(UpdateTheme)
+        self.Library.Options.AccentColor:OnChanged(UpdateTheme)
+        self.Library.Options.OutlineColor:OnChanged(UpdateTheme)
+        self.Library.Options.FontColor:OnChanged(UpdateTheme)
+        self.Library.Options.FontFace:OnChanged(function(Value)
+            self.Library:SetFont(Enum.Font[Value])
+            self.Library:UpdateColorsUsingRegistry()
+        end)
     end
 
-    function SettingsManager:ApplyToTab(tab)
-        assert(self.Library, "Must set SettingsManager.Library first!")
-        -- Renamed Groupbox title to better reflect its function
-        local groupbox = tab:AddLeftGroupbox("Appearance Colors", "color-palette") 
-        self:CreateColorSettings(groupbox)
+    function ThemeManager:CreateGroupBox(tab)
+        assert(self.Library, "Must set ThemeManager.Library first!")
+        return tab:AddLeftGroupbox("Themes", "paintbrush")
     end
 
-    function SettingsManager:ApplyToGroupbox(groupbox)
-        assert(self.Library, "Must set SettingsManager.Library first!")
-        self:CreateColorSettings(groupbox)
+    function ThemeManager:ApplyToTab(tab)
+        assert(self.Library, "Must set ThemeManager.Library first!")
+        local groupbox = self:CreateGroupBox(tab)
+        self:CreateThemeManager(groupbox)
     end
 
-    SettingsManager:BuildFolderTree()
+    function ThemeManager:ApplyToGroupbox(groupbox)
+        assert(self.Library, "Must set ThemeManager.Library first!")
+        self:CreateThemeManager(groupbox)
+    end
+
+    ThemeManager:BuildFolderTree()
 end
 
-getgenv().ObsidianSettingsManager = SettingsManager
-return SettingsManager
+getgenv().ObsidianThemeManager = ThemeManager
+return ThemeManager
