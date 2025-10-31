@@ -33,6 +33,18 @@ end
 
 -- Renamed ThemeManager to SettingsManager as its function is now generalized settings control.
 local SettingsManager = {}
+
+-- Define the user's requested default theme constants
+-- Эти значения будут применены как тема по умолчанию при первой загрузке.
+local USER_DEFAULT_THEME = {
+    MainColor = "000000",
+    FontFace = "SourceSans",
+    AccentColor = "ff0000",
+    OutlineColor = "000000",
+    BackgroundColor = "000000",
+    FontColor = "ffffff"
+}
+
 do
     SettingsManager.Folder = "ObsidianLibSettings"
     SettingsManager.Library = nil
@@ -40,6 +52,17 @@ do
 
     function SettingsManager:SetLibrary(library)
         self.Library = library
+        
+        -- Принудительно устанавливаем цветовую схему и шрифт, запрошенные пользователем,
+        -- сразу же, чтобы они использовались библиотекой до построения UI.
+        if self.Library and self.Library.Scheme then
+            self.Library.Scheme.MainColor = USER_DEFAULT_THEME.MainColor
+            self.Library.Scheme.AccentColor = USER_DEFAULT_THEME.AccentColor
+            self.Library.Scheme.OutlineColor = USER_DEFAULT_THEME.OutlineColor
+            self.Library.Scheme.BackgroundColor = USER_DEFAULT_THEME.BackgroundColor
+            self.Library.Scheme.FontColor = USER_DEFAULT_THEME.FontColor
+            self.Library.Scheme.FontFace = USER_DEFAULT_THEME.FontFace -- Установка шрифта
+        end
     end
 
     --// Folder Management \\--
@@ -86,7 +109,7 @@ do
                 self.Library.Scheme[field] = self.Library.Options[field].Value
             end
         end
-
+        
         -- 2. Apply changes to GUI
         self.Library:UpdateColorsUsingRegistry()
     end
@@ -95,7 +118,7 @@ do
     function SettingsManager:LoadInitialSettings()
         if not self.Library or not self.Library.Options then return end
         
-        -- Apply the colors set in the options to the library's scheme
+        -- Применяем цвета, установленные в опциях, к схеме библиотеки.
         self:UpdateColors() 
     end
 
@@ -104,18 +127,19 @@ do
     function SettingsManager:CreateColorSettings(groupbox)
         assert(self.Library, "Must set SettingsManager.Library first!")
         
-        local scheme = self.Library.Scheme
+        -- Используем hardcoded defaults из USER_DEFAULT_THEME для инициализации ColorPicker-ов
+        local defaults = USER_DEFAULT_THEME
 
         -- Add color pickers
         groupbox
             :AddLabel("Background color")
-            :AddColorPicker("BackgroundColor", { Default = scheme.BackgroundColor })
-        groupbox:AddLabel("Main color"):AddColorPicker("MainColor", { Default = scheme.MainColor })
-        groupbox:AddLabel("Accent color"):AddColorPicker("AccentColor", { Default = scheme.AccentColor })
+            :AddColorPicker("BackgroundColor", { Default = defaults.BackgroundColor })
+        groupbox:AddLabel("Main color"):AddColorPicker("MainColor", { Default = defaults.MainColor })
+        groupbox:AddLabel("Accent color"):AddColorPicker("AccentColor", { Default = defaults.AccentColor })
         groupbox
             :AddLabel("Outline color")
-            :AddColorPicker("OutlineColor", { Default = scheme.OutlineColor })
-        groupbox:AddLabel("Font color"):AddColorPicker("FontColor", { Default = scheme.FontColor })
+            :AddColorPicker("OutlineColor", { Default = defaults.OutlineColor })
+        groupbox:AddLabel("Font color"):AddColorPicker("FontColor", { Default = defaults.FontColor })
 
         self.AppliedToTab = true
         
