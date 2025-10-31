@@ -1,16 +1,13 @@
 local cloneref = (cloneref or clonereference or function(instance: any)
     return instance
 end)
--- HttpService is no longer strictly necessary for themes but kept for compatibility if other parts of the library use it.
+
+-- HttpService kept for compatibility, but not used for theme logic anymore.
 local httpService = cloneref(game:GetService("HttpService")) 
--- Unused utilities removed to clean up code
--- local httprequest = (syn and syn.request) or request or http_request or (http and http.request)
--- local getassetfunc = getcustomasset or getsynasset
 local isfolder, isfile, listfiles = isfolder, isfile, listfiles
 
 if typeof(copyfunction) == "function" then
     -- Fix is_____ functions for shitsploits, those functions should never error, only return a boolean.
-
     local isfolder_copy, isfile_copy, listfiles_copy =
         copyfunction(isfolder), copyfunction(isfile), copyfunction(listfiles)
 
@@ -42,21 +39,19 @@ do
     SettingsManager.Folder = "ObsidianLibSettings"
     SettingsManager.Library = nil
     SettingsManager.AppliedToTab = false
-    -- BuiltInThemes, CustomThemes functionality removed
 
     function SettingsManager:SetLibrary(library)
         self.Library = library
     end
 
     --// Folder Management \\--
-    -- Simplified GetPaths as /themes subfolder is no longer needed
     function SettingsManager:GetPaths()
+        -- Only the root folder is necessary
         return { self.Folder }
     end
 
     function SettingsManager:BuildFolderTree()
         local paths = self:GetPaths()
-
         for i = 1, #paths do
             local str = paths[i]
             if isfolder(str) then
@@ -80,8 +75,8 @@ do
     end
 
     --// Update Settings \\--
-    -- Renamed to UpdateSettings, handles both colors and font
-    function SettingsManager:UpdateSettings()
+    -- This function now only handles color updates. Font logic is in main_script.lua
+    function SettingsManager:UpdateColors()
         if not self.Library or not self.Library.Options then
             return
         end
@@ -95,35 +90,21 @@ do
             end
         end
 
-        -- 2. Update Font from Options
-        local fontOption = self.Library.Options["FontFace"]
-        if fontOption and fontOption.Value then
-            -- Fix for SourceSans issue: directly apply the enum via its name string
-            self.Library:SetFont(Enum.Font[fontOption.Value])
-        end
-
-        -- 3. Apply changes to GUI
+        -- 2. Apply changes to GUI
         self.Library:UpdateColorsUsingRegistry()
     end
 
     -- Function to load initial settings (using the library's current scheme)
     function SettingsManager:LoadInitialSettings()
         if not self.Library or not self.Library.Options then return end
-
-        -- Set the default font explicitly to SourceSans and apply it immediately
-        local fontOption = self.Library.Options.FontFace
-        if fontOption then
-            fontOption:SetValue("SourceSans")
-            self.Library:SetFont(Enum.Font.SourceSans)
-        end
         
-        -- Apply the colors/font set in the options to the library's scheme
-        self:UpdateSettings() 
+        -- Apply the colors set in the options to the library's scheme
+        self:UpdateColors() 
     end
 
 
-    --// GUI Creation - Simplified to only settings \\--
-    function SettingsManager:CreateSettings(groupbox)
+    --// GUI Creation - Simplified to only color settings \\--
+    function SettingsManager:CreateColorSettings(groupbox)
         assert(self.Library, "Must set SettingsManager.Library first!")
         
         local scheme = self.Library.Scheme
@@ -139,50 +120,32 @@ do
             :AddColorPicker("OutlineColor", { Default = scheme.OutlineColor })
         groupbox:AddLabel("Font color"):AddColorPicker("FontColor", { Default = scheme.FontColor })
 
-        groupbox:AddDivider()
-
-        -- Font Dropdown (Moved to the general settings area as requested)
-        groupbox:AddDropdown("FontFace", {
-            Text = "Font Face",
-            Default = "SourceSans",
-            Values = { "BuilderSans", "Code", "Fantasy", "Gotham", "Jura", "Roboto", "RobotoMono", "SourceSans" },
-        })
-
-        groupbox:AddDivider()
-
         self.AppliedToTab = true
         
         -- Handlers for continuous updating
-        local function UpdateSettingsHandler()
-            self:UpdateSettings()
+        local function UpdateColorsHandler()
+            self:UpdateColors()
         end
         
-        self.Library.Options.BackgroundColor:OnChanged(UpdateSettingsHandler)
-        self.Library.Options.MainColor:OnChanged(UpdateSettingsHandler)
-        self.Library.Options.AccentColor:OnChanged(UpdateSettingsHandler)
-        self.Library.Options.OutlineColor:OnChanged(UpdateSettingsHandler)
-        self.Library.Options.FontColor:OnChanged(UpdateSettingsHandler)
-        
-        -- Font specific handler
-        self.Library.Options.FontFace:OnChanged(function()
-            self:UpdateSettings()
-        end)
+        self.Library.Options.BackgroundColor:OnChanged(UpdateColorsHandler)
+        self.Library.Options.MainColor:OnChanged(UpdateColorsHandler)
+        self.Library.Options.AccentColor:OnChanged(UpdateColorsHandler)
+        self.Library.Options.OutlineColor:OnChanged(UpdateColorsHandler)
+        self.Library.Options.FontColor:OnChanged(UpdateColorsHandler)
         
         self:LoadInitialSettings()
     end
 
-    -- Renamed and simplified ApplyToTab
     function SettingsManager:ApplyToTab(tab)
         assert(self.Library, "Must set SettingsManager.Library first!")
         -- Renamed Groupbox title to better reflect its function
-        local groupbox = tab:AddLeftGroupbox("Appearance Settings", "gear") 
-        self:CreateSettings(groupbox)
+        local groupbox = tab:AddLeftGroupbox("Appearance Colors", "color-palette") 
+        self:CreateColorSettings(groupbox)
     end
 
-    -- Renamed and simplified ApplyToGroupbox
     function SettingsManager:ApplyToGroupbox(groupbox)
         assert(self.Library, "Must set SettingsManager.Library first!")
-        self:CreateSettings(groupbox)
+        self:CreateColorSettings(groupbox)
     end
 
     SettingsManager:BuildFolderTree()
