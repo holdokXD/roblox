@@ -44,8 +44,9 @@ do
     ThemeManager.BuiltInThemes = {
         ["Default"] = {
             1,
+            -- Убеждаемся, что SourceSans установлен
             httpService:JSONDecode(
-                [[{"FontColor":"ffffff","MainColor":"191919","AccentColor":"7d55ff","BackgroundColor":"0f0f0f","OutlineColor":"282828"}]]
+                [[{"FontColor":"ffffff","MainColor":"000000","AccentColor":"ff0000","BackgroundColor":"000000","OutlineColor":"000000", "FontFace":"SourceSans"}]]
             ),
         },
         ["BBot"] = {
@@ -205,8 +206,10 @@ do
             return
         end
 
-        local scheme = data[2]
-        for idx, val in pairs(customThemeData or scheme) do
+        -- 'data' can be either {index, scheme} for built-in, or just 'scheme' for custom
+        local scheme = (typeof(data[2]) == "table") and data[2] or data 
+
+        for idx, val in pairs(scheme) do
             if idx == "VideoLink" then
                 continue
             elseif idx == "FontFace" then
@@ -272,8 +275,10 @@ do
         end
 
         if isDefault then
+            -- If it's a built-in theme, use Dropdown
             self.Library.Options.ThemeManager_ThemeList:SetValue(theme)
         else
+            -- If it's a custom theme, apply it directly
             self:ApplyTheme(theme)
         end
     end
@@ -309,8 +314,9 @@ do
             FinalTheme["FontFace"] = theme["FontFace"]
             LibraryScheme["Font"] = Font.fromEnum(Enum.Font[theme["FontFace"]])
         else
-            FinalTheme["FontFace"] = "Code"
-            LibraryScheme["Font"] = Font.fromEnum(Enum.Font.Code)
+            -- Fallback to SourceSans
+            FinalTheme["FontFace"] = "SourceSans"
+            LibraryScheme["Font"] = Font.fromEnum(Enum.Font.SourceSans)
         end
 
         for _, field in pairs({ "Red", "Dark", "White" }) do
@@ -386,6 +392,7 @@ do
 
     --// GUI \\--
     function ThemeManager:CreateThemeManager(groupbox)
+        -- ColorPickers will now default to the new black/red theme
         groupbox
             :AddLabel("Background color")
             :AddColorPicker("BackgroundColor", { Default = self.Library.Scheme.BackgroundColor })
@@ -395,9 +402,11 @@ do
             :AddLabel("Outline color")
             :AddColorPicker("OutlineColor", { Default = self.Library.Scheme.OutlineColor })
         groupbox:AddLabel("Font color"):AddColorPicker("FontColor", { Default = self.Library.Scheme.FontColor })
+        
+        -- Default font face is now "SourceSans"
         groupbox:AddDropdown("FontFace", {
             Text = "Font Face",
-            Default = "Code",
+            Default = "SourceSans",
             Values = { "BuilderSans", "Code", "Fantasy", "Gotham", "Jura", "Roboto", "RobotoMono", "SourceSans" },
         })
 
@@ -524,7 +533,4 @@ do
     end
 
     ThemeManager:BuildFolderTree()
-end
-
-getgenv().ObsidianThemeManager = ThemeManager
-return ThemeManager
+    
