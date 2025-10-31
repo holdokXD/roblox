@@ -77,6 +77,7 @@ do
     --// Update Settings \\--
     -- This function now only handles color updates. Font logic is in main_script.lua
     function SettingsManager:UpdateColors()
+        -- Ensure Library and Options exist before proceeding
         if not self.Library or not self.Library.Options then
             return
         end
