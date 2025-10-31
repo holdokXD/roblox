@@ -44,9 +44,9 @@ do
     ThemeManager.BuiltInThemes = {
         ["Default"] = {
             1,
-            -- ОБНОВЛЕННАЯ ТЕМА ПО УМОЛЧАНИЮ: Черный фон/главный цвет с красным акцентом
+            -- ИСПРАВЛЕНО: Добавлен FontFace: "SourceSans" в JSON, чтобы избежать сброса на "Code".
             httpService:JSONDecode(
-                [[{"FontColor":"ffffff","MainColor":"000000","AccentColor":"ff0000","BackgroundColor":"000000","OutlineColor":"000000"}]]
+                [[{"FontColor":"ffffff","MainColor":"000000","AccentColor":"ff0000","BackgroundColor":"000000","OutlineColor":"000000", "FontFace":"SourceSans"}]]
             ),
         },
         ["BBot"] = {
@@ -206,8 +206,10 @@ do
             return
         end
 
-        local scheme = data[2]
-        for idx, val in pairs(customThemeData or scheme) do
+        -- 'data' может быть либо таблицей {index, scheme} для встроенных, либо просто 'scheme' для кастомных
+        local scheme = (typeof(data[2]) == "table") and data[2] or data 
+
+        for idx, val in pairs(scheme) do
             if idx == "VideoLink" then
                 continue
             elseif idx == "FontFace" then
@@ -273,8 +275,10 @@ do
         end
 
         if isDefault then
+            -- Если это встроенная тема, используем Dropdown
             self.Library.Options.ThemeManager_ThemeList:SetValue(theme)
         else
+            -- Если это кастомная тема, применяем ее напрямую
             self:ApplyTheme(theme)
         end
     end
@@ -310,8 +314,9 @@ do
             FinalTheme["FontFace"] = theme["FontFace"]
             LibraryScheme["Font"] = Font.fromEnum(Enum.Font[theme["FontFace"]])
         else
-            FinalTheme["FontFace"] = "Code"
-            LibraryScheme["Font"] = Font.fromEnum(Enum.Font.Code)
+            -- ИСПРАВЛЕНО: Резервное значение теперь SourceSans
+            FinalTheme["FontFace"] = "SourceSans"
+            LibraryScheme["Font"] = Font.fromEnum(Enum.Font.SourceSans)
         end
 
         for _, field in pairs({ "Red", "Dark", "White" }) do
@@ -523,12 +528,4 @@ do
     end
 
     function ThemeManager:ApplyToGroupbox(groupbox)
-        assert(self.Library, "Must set ThemeManager.Library first!")
-        self:CreateThemeManager(groupbox)
-    end
-
-    ThemeManager:BuildFolderTree()
-end
-
-getgenv().ObsidianThemeManager = ThemeManager
-return ThemeManager
+        assert(self.Library, "Must set ThemeManager.Li
