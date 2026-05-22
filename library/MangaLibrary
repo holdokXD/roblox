@@ -87,12 +87,14 @@ function Library:CreateWindow(cfg)
     local tImg = Make("ImageLabel", {Size = U2(1, 0, 1, 0), BackgroundTransparency = 1}, tFrame); Corner(tImg, 30)
     local tBtn = Make("TextButton", {Size = U2(1, 0, 1, 0), BackgroundTransparency = 1, Text = ""}, tFrame)
     
+    function Window:SetToggleIcon(img) if tImg then tImg.Image = img end end
+    
     local lFrame = Make("Frame", {Size = U2(0, 300, 0, 100), Position = U2(0.5, 0, -0.5, 0), AnchorPoint = Vector2.new(0.5, 0.5), BackgroundColor3 = C_WHT, ZIndex = 100}, sg); Corner(lFrame, 12); Stroke(lFrame, 3)
     local lText = Make("TextLabel", {Size = U2(1, 0, 0, 40), Position = U2(0, 0, 0, 10), Text = "CHECKING... 0%", TextSize = 20}, lFrame)
     local bBg = Make("Frame", {Size = U2(1, -40, 0, 15), Position = U2(0, 20, 0, 60), BackgroundColor3 = RGB(200, 200, 200)}, lFrame); Corner(bBg, 8); Stroke(bBg, 2)
     local bFill = Make("Frame", {Size = U2(0, 0, 1, 0), BackgroundColor3 = C_BLK}, bBg); Corner(bFill, 8)
     
-    -- Notification System
+    -- Уведомления
     local nUI = Make("Frame", {Size = U2(0, 220, 1, -40), Position = U2(1, -20, 0, 20), AnchorPoint = Vector2.new(1, 0), BackgroundTransparency = 1, ZIndex = 1000}, sg)
     local nLayout = Make("UIListLayout", {Padding = U1(0, 10), HorizontalAlignment = 2}, nUI)
     local nPos = "Right"
@@ -140,14 +142,24 @@ function Library:CreateWindow(cfg)
     local bBar = Make("Frame", {Size = U2(1, 0, 0, 65), Position = U2(0, 0, 1, -65), BackgroundTransparency = 1, ZIndex = 5}, mFrame)
     Make("Frame", {Size = U2(1, 0, 0, 3), BackgroundColor3 = C_BLK}, bBar)
     
-    -- SCROLLING TABS CONTAINER
+    -- Контейнер вкладок с поддержкой скролла колесиком
     local tCont = Make("ScrollingFrame", {
         Size = U2(1, -40, 1, -3), Position = U2(0, 20, 0, 3), 
         BackgroundTransparency = 1, ScrollBarThickness = 0, 
-        CanvasSize = U2(0,0,0,0), ScrollingDirection = Enum.ScrollingDirection.X
+        CanvasSize = U2(0,0,0,0), ScrollingDirection = Enum.ScrollingDirection.X, ClipsDescendants = true
     }, bBar)
-    local tLayout = Make("UIListLayout", {FillDirection = Enum.FillDirection.Horizontal, VerticalAlignment = Enum.VerticalAlignment.Center, HorizontalAlignment = Enum.HorizontalAlignment.Left, Padding = U1(0, 10)}, tCont)
-    Connect(tLayout:GetPropertyChangedSignal("AbsoluteContentSize"), function() tCont.CanvasSize = U2(0, tLayout.AbsoluteContentSize.X + 10, 0, 0) end)
+    
+    local tLayout = Make("UIListLayout", {FillDirection = Enum.FillDirection.Horizontal, VerticalAlignment = Enum.VerticalAlignment.Center, HorizontalAlignment = Enum.HorizontalAlignment.Left, Padding = U1(0, 12)}, tCont)
+    Connect(tLayout:GetPropertyChangedSignal("AbsoluteContentSize"), function() tCont.CanvasSize = U2(0, tLayout.AbsoluteContentSize.X + 15, 0, 0) end)
+    
+    -- Скролл горизонтальных вкладок
+    Connect(tCont.InputChanged, function(input)
+        if input.UserInputType == Enum.UserInputType.MouseWheel then
+            local pos = tCont.CanvasPosition
+            local maxScroll = math.max(0, tCont.AbsoluteCanvasSize.X - tCont.AbsoluteWindowSize.X)
+            Tween(tCont, 0.15, {CanvasPosition = Vector2.new(math.clamp(pos.X - (input.Position.Z * 60), 0, maxScroll), 0)}, ES.Sine, ED.Out)
+        end
+    end)
 
     local function BindAnim(b, dBg, isT, tN, mode)
         if not b then return end
@@ -172,32 +184,27 @@ function Library:CreateWindow(cfg)
         if isT then Library.TabUpdaters[tN] = upd end
     end
 
-    local function Col(p, pos) 
-        local c = Make("ScrollingFrame", {Size = U2(0.5, -25, 1, 0), Position = pos, BackgroundTransparency = 1, ScrollBarThickness = 0, CanvasSize = U2(0,0,0,0)}, p)
-        Make("UIPadding", {PaddingTop = U1(0,10), PaddingBottom = U1(0, 15), PaddingLeft = U1(0,4), PaddingRight = U1(0,4)}, c)
-        local col_layout = Make("UIListLayout", {Padding = U1(0, 15)}, c)
-        local function updSize() c.CanvasSize = U2(0, 0, 0, m_ceil(col_layout.AbsoluteContentSize.Y) + 30) end
-        Connect(col_layout:GetPropertyChangedSignal("AbsoluteContentSize"), updSize)
-        task.defer(updSize); return c 
-    end
-
     function Window:CreateTab(name)
         Window.TabCounter = Window.TabCounter + 1
         local id = "Tab_" .. tostring(Window.TabCounter)
         
-        -- AutomaticSize for scrollable tabs
-        local b = Make("TextButton", {Size = U2(0, 0, 0, 42), AutomaticSize = Enum.AutomaticSize.X, BackgroundColor3 = C_WHT, BackgroundTransparency = 0, Text = name, TextSize = 18, ZIndex = 6}, tCont)
+        local b = Make("TextButton", {Size = U2(0, 0, 0, 42), AutomaticSize = Enum.AutomaticSize.X, BackgroundColor3 = C_WHT, BackgroundTransparency = 0, Text = name, TextSize = 18, ZIndex = 6, TextTruncate = Enum.TextTruncate.None}, tCont)
         Make("UIPadding", {PaddingLeft = U1(0, 15), PaddingRight = U1(0, 15)}, b)
         Corner(b, 8); Stroke(b, 3); BindAnim(b, C_WHT, true, id)
         
         local p = Make("Frame", {Size = U2(1, 0, 1, 0), BackgroundTransparency = 1, Visible = false, ZIndex = 6}, cFrame)
-        local lCol, rCol = Col(p, U2(0, 20, 0, 0)), Col(p, U2(0.5, 5, 0, 0))
+        local function Col(pos) 
+            local c = Make("ScrollingFrame", {Size = U2(0.5, -25, 1, 0), Position = pos, BackgroundTransparency = 1, ScrollBarThickness = 0, CanvasSize = U2(0,0,0,0)}, p)
+            Make("UIPadding", {PaddingTop = U1(0,10), PaddingBottom = U1(0, 15), PaddingLeft = U1(0,4), PaddingRight = U1(0,4)}, c)
+            local col_layout = Make("UIListLayout", {Padding = U1(0, 15)}, c)
+            local function updSize() c.CanvasSize = U2(0, 0, 0, m_ceil(col_layout.AbsoluteContentSize.Y) + 30) end
+            Connect(col_layout:GetPropertyChangedSignal("AbsoluteContentSize"), updSize); task.defer(updSize); return c 
+        end
         
+        local lCol, rCol = Col(U2(0, 20, 0, 0)), Col(U2(0.5, 5, 0, 0))
         Window.Tabs[id] = {btn = b, page = p, idx = Window.TabCounter, name = name}
         
-        if not Window.CurrentTab then
-            Window.CurrentTab = id
-        end
+        if not Window.CurrentTab then Window.CurrentTab = id end
 
         Connect(b.MouseButton1Click, function()
             if Window.CurrentTab == id or Window.AnimTab then return end; Window.AnimTab = true
@@ -209,29 +216,25 @@ function Library:CreateWindow(cfg)
             Tween(nw.page, 0.4, {Position = U2(0, 0, 0, 0)}, ES.Quint, ED.Out).Completed:Connect(function() o.page.Visible, Window.AnimTab = false, false end)
         end)
 
-        local TabObj = {}
+        local TabObj = {Page = p}
         function TabObj:CreateSection(title, side)
             local targetCol = (side and side:lower() == "right") and rCol or lCol
-            
             local gb = Make("Frame", {Size = U2(1, 0, 0, 0), BackgroundColor3 = C_WHT}, targetCol)
             Corner(gb, 10); Stroke(gb, 2); Make("UIPadding", {PaddingBottom = U1(0, 12)}, gb)
             Make("TextLabel", {Size = U2(1, -10, 0, 25), Position = U2(0, 10, 0, 5), Text = title, TextSize = 16, TextXAlignment = 0}, gb)
             local l = Make("Frame", {Size = U2(1, -20, 0, 2), Position = U2(0, 10, 0, 30), BackgroundColor3 = C_BLK}, gb); Corner(l, 100)
-            
             local c = Make("Frame", {Size = U2(1, 0, 0, 0), Position = U2(0, 0, 0, 38), BackgroundTransparency = 1}, gb)
             Make("UIPadding", {PaddingLeft = U1(0, 10), PaddingRight = U1(0, 10)}, c) 
             local l_layout = Make("UIListLayout", {Padding = U1(0, 8)}, c)
-            
             local function updSize()
-                local h = m_ceil(l_layout.AbsoluteContentSize.Y)
-                c.Size = U2(1, 0, 0, h); gb.Size = U2(1, 0, 0, 38 + h + 12)
+                local h = m_ceil(l_layout.AbsoluteContentSize.Y); c.Size = U2(1, 0, 0, h); gb.Size = U2(1, 0, 0, 38 + h + 12)
             end
             Connect(l_layout:GetPropertyChangedSignal("AbsoluteContentSize"), updSize); task.defer(updSize)
             
             local SectionObj = {}
             function SectionObj:CreateButton(opt)
-                local b = Make("TextButton", {Size = U2(1, 0, 0, 32), BackgroundColor3 = C_WHT, BackgroundTransparency = 0, Text = opt.Name}, c); Corner(b, 6); Stroke(b, 2); BindAnim(b, C_WHT, false, nil, "button")
-                local db = false; Connect(b.MouseButton1Click, function() if db then return end; db = true; task.delay(0.2, function() db = false end); if opt.Callback then opt.Callback() end end); return b
+                local btn = Make("TextButton", {Size = U2(1, 0, 0, 32), BackgroundColor3 = C_WHT, BackgroundTransparency = 0, Text = opt.Name}, c); Corner(btn, 6); Stroke(btn, 2); BindAnim(btn, C_WHT, false, nil, "button")
+                local db = false; Connect(btn.MouseButton1Click, function() if db then return end; db = true; task.delay(0.2, function() db = false end); if opt.Callback then opt.Callback() end end); return btn
             end
 
             function SectionObj:CreateInput(opt)
@@ -247,33 +250,22 @@ function Library:CreateWindow(cfg)
                 local wrap = Make("Frame", {Size = U2(1, 0, 0, 32), BackgroundTransparency = 1}, c)
                 Make("TextLabel", {Size = U2(0, 80, 1, 0), Position = U2(0, 0, 0, 0), Text = opt.Name, TextXAlignment = 0, TextTruncate = Enum.TextTruncate.AtEnd}, wrap)
                 local vBox = Make("TextBox", {Size = U2(0, 32, 0, 24), AnchorPoint = Vector2.new(1, 0.5), Position = U2(1, 0, 0.5, 0), Text = tostring(opt.Default or opt.Min), TextXAlignment = Enum.TextXAlignment.Center, ClearTextOnFocus = false, BackgroundTransparency = 1}, wrap)
-                local bg = Make("TextButton", {Size = U2(1, -120, 0, 10), AnchorPoint = Vector2.new(0, 0.5), Position = U2(0, 80, 0.5, 0), BackgroundColor3 = C_WHT, Text = "", AutoButtonColor = false}, wrap)
-                Corner(bg, U1(1, 0)); Stroke(bg, 2)
-                
-                local cBlue = RGB(45, 155, 255)
-                local fill = Make("Frame", {Size = U2(0, 0, 1, 0), BackgroundColor3 = cBlue}, bg); Corner(fill, U1(1, 0))
+                local bg = Make("TextButton", {Size = U2(1, -120, 0, 10), AnchorPoint = Vector2.new(0, 0.5), Position = U2(0, 80, 0.5, 0), BackgroundColor3 = C_WHT, Text = "", AutoButtonColor = false}, wrap); Corner(bg, U1(1, 0)); Stroke(bg, 2)
+                local fill = Make("Frame", {Size = U2(0, 0, 1, 0), BackgroundColor3 = RGB(45, 155, 255)}, bg); Corner(fill, U1(1, 0))
                 local kn = Make("Frame", {Size = U2(0, 14, 0, 14), AnchorPoint = Vector2.new(0.5, 0.5), Position = U2(0, 0, 0.5, 0), BackgroundColor3 = C_WHT}, bg); Corner(kn, U1(1, 0)); Stroke(kn, 2)
                 
                 local val = opt.Default or opt.Min
                 if opt.Flag then Library.Flags[opt.Flag] = val end
-                
                 local function setV(nw)
                     nw = m_clamp(tonumber(nw) or opt.Min, opt.Min, opt.Max); val = nw
-                    if opt.Flag then Library.Flags[opt.Flag] = val end
-                    if not vBox:IsFocused() then vBox.Text = tostring(val) end
-                    local pct = (val - opt.Min) / (opt.Max - opt.Min)
-                    Tween(fill, 0.1, {Size = U2(pct, 0, 1, 0)}, ES.Linear); Tween(kn, 0.1, {Position = U2(pct, 0, 0.5, 0)}, ES.Linear)
+                    if opt.Flag then Library.Flags[opt.Flag] = val end; if not vBox:IsFocused() then vBox.Text = tostring(val) end
+                    local pct = (val - opt.Min) / (opt.Max - opt.Min); Tween(fill, 0.1, {Size = U2(pct, 0, 1, 0)}, ES.Linear); Tween(kn, 0.1, {Position = U2(pct, 0, 0.5, 0)}, ES.Linear)
                     if opt.Callback then opt.Callback(val) end
                 end
                 if opt.Flag then Library.Elements[opt.Flag] = {SetValue = setV} end
-                
-                local d_drag = false
-                local function hndl(i) local pct = m_clamp((i.Position.X - bg.AbsolutePosition.X) / bg.AbsoluteSize.X, 0, 1); setV(m_floor(opt.Min + (opt.Max - opt.Min) * pct + 0.5)) end
-                Connect(bg.InputBegan, function(i) if isClk(i) then d_drag = true; hndl(i) end end)
-                Connect(UIS.InputChanged, function(i) if d_drag and (i.UserInputType == UIT.MouseMovement or i.UserInputType == UIT.Touch) then hndl(i) end end)
-                Connect(UIS.InputEnded, function(i) if isClk(i) then d_drag = false end end)
-                Connect(vBox.FocusLost, function() setV(vBox.Text) end)
-                setV(val)
+                local d_drag = false; Connect(bg.InputBegan, function(i) if isClk(i) then d_drag = true; setV(m_floor(opt.Min + (opt.Max - opt.Min) * m_clamp((i.Position.X - bg.AbsolutePosition.X) / bg.AbsoluteSize.X, 0, 1) + 0.5)) end end)
+                Connect(UIS.InputChanged, function(i) if d_drag and (i.UserInputType == UIT.MouseMovement or i.UserInputType == UIT.Touch) then setV(m_floor(opt.Min + (opt.Max - opt.Min) * m_clamp((i.Position.X - bg.AbsolutePosition.X) / bg.AbsoluteSize.X, 0, 1) + 0.5)) end end)
+                Connect(UIS.InputEnded, function(i) if isClk(i) then d_drag = false end end); Connect(vBox.FocusLost, function() setV(vBox.Text) end); setV(val)
                 return {SetValue = setV, GetValue = function() return val end}
             end
 
@@ -282,11 +274,8 @@ function Library:CreateWindow(cfg)
                 Make("TextLabel", {Size = U2(1, -60, 1, 0), Position = U2(0, 0, 0, 0), Text = opt.Name, TextXAlignment = 0}, wrap)
                 local cOn, cOff, st = RGB(110, 200, 120), RGB(200, 200, 200), opt.Default or false
                 if opt.Flag then Library.Flags[opt.Flag] = st end
-                
-                local bg = Make("TextButton", {Size = U2(0, 44, 0, 24), AnchorPoint = Vector2.new(1, 0.5), Position = U2(1, 0, 0.5, 0), BackgroundColor3 = st and cOn or cOff, BackgroundTransparency = 0, Text = ""}, wrap)
-                Corner(bg, U1(1, 0)); Stroke(bg, 2)
-                local kn = Make("Frame", {Size = U2(0, 14, 0, 14), AnchorPoint = Vector2.new(0, 0.5), Position = U2(0, st and 25 or 5, 0.5, 0), BackgroundColor3 = C_WHT}, bg)
-                Corner(kn, U1(1, 0)); Stroke(kn, 2)
+                local bg = Make("TextButton", {Size = U2(0, 44, 0, 24), AnchorPoint = Vector2.new(1, 0.5), Position = U2(1, 0, 0.5, 0), BackgroundColor3 = st and cOn or cOff, BackgroundTransparency = 0, Text = ""}, wrap); Corner(bg, U1(1, 0)); Stroke(bg, 2)
+                local kn = Make("Frame", {Size = U2(0, 14, 0, 14), AnchorPoint = Vector2.new(0, 0.5), Position = U2(0, st and 25 or 5, 0.5, 0), BackgroundColor3 = C_WHT}, bg); Corner(kn, U1(1, 0)); Stroke(kn, 2)
                 
                 local d_drag, sX, mvd = false, 0, false
                 local function setSt(nw) 
@@ -296,7 +285,6 @@ function Library:CreateWindow(cfg)
                     if opt.Callback then opt.Callback(st) end 
                 end
                 if opt.Flag then Library.Elements[opt.Flag] = {SetValue = setSt} end
-                
                 Connect(bg.InputBegan, function(i) if isClk(i) then d_drag, sX, mvd = true, i.Position.X, false end end)
                 Connect(bg.InputChanged, function(i) if d_drag and (i.UserInputType == UIT.MouseMovement or i.UserInputType == UIT.Touch) then local delta = i.Position.X - sX; if (not st and delta > 10) or (st and delta < -10) then mvd, sX = true, i.Position.X; setSt(not st) end end end)
                 Connect(UIS.InputEnded, function(i) if isClk(i) then d_drag, mvd = false, false end end)
@@ -310,11 +298,9 @@ function Library:CreateWindow(cfg)
                 local mB = Make("TextButton", {Size = U2(1, 0, 0, 32), Position = U2(0, 0, 0, 24), BackgroundColor3 = C_WHT, BackgroundTransparency = 0, TextXAlignment = 0, ZIndex = 3}, wrap); Corner(mB, 6); Stroke(mB, 2)
                 local ic = Make("TextLabel", {Size = U2(0, 20, 0, 20), Position = U2(1, -15, 0.5, 0), AnchorPoint = Vector2.new(0.5,0.5), Text = "▼", Font = Enum.Font.GothamBold, TextSize = 12, ZIndex = 4}, mB)
                 local w = Make("Frame", {Size = U2(1, 0, 0, 0), Position = U2(0, 0, 0, 54), BackgroundColor3 = RGB(250,250,250), ClipsDescendants = true, ZIndex = 2}, wrap); Corner(w, 6); local str = Stroke(w, 2, C_BLK, 1)
-                
                 local l = Make("ScrollingFrame", {Size = U2(1, 0, 1, 0), BackgroundTransparency = 1, ScrollBarThickness = 0, CanvasSize = U2(0,0,0,0)}, w)
                 Make("UIPadding", {PaddingTop = U1(0,4), PaddingBottom = U1(0,4), PaddingLeft = U1(0,4), PaddingRight = U1(0,4)}, l)
-                local l_layout = Make("UIListLayout", {Padding = U1(0, 2)}, l)
-                Connect(l_layout:GetPropertyChangedSignal("AbsoluteContentSize"), function() l.CanvasSize = U2(0, 0, 0, m_ceil(l_layout.AbsoluteContentSize.Y) + 10) end)
+                local l_layout = Make("UIListLayout", {Padding = U1(0, 2)}, l); Connect(l_layout:GetPropertyChangedSignal("AbsoluteContentSize"), function() l.CanvasSize = U2(0, 0, 0, m_ceil(l_layout.AbsoluteContentSize.Y) + 10) end)
 
                 local isO, tH, sel, aO = false, 0, {}, nil
                 if opt.Multiple then for _,v in ipairs(opt.Default or {}) do sel[v] = true end else sel.single = opt.Default end
@@ -323,18 +309,17 @@ function Library:CreateWindow(cfg)
                 local function uT() if not opt.Multiple then mB.Text = "  " .. (sel.single and tostring(sel.single) or "None") return end; local cnt = 0; for _,v in pairs(sel) do if v then cnt+=1 end end; mB.Text = cnt == 0 and "  None" or "  [" .. cnt .. "] Selected" end
                 local function tgl() isO = not isO; Tween(ic, 0.4, {Rotation = isO and 180 or 0}); Tween(w, 0.4, {Size = U2(1, 0, 0, isO and tH or 0)}); Tween(str, 0.3, {Transparency = isO and 0 or 1}); Tween(wrap, 0.4, {Size = U2(1, 0, 0, isO and (54 + tH) or 56)}) end
                 Connect(mB.MouseButton1Click, tgl)
-                
                 local function bld(nO)
                     aO = nil; for _, v in ipairs(l:GetChildren()) do if v:IsA("TextButton") then v:Destroy() end end
                     opt.Options, tH = nO, m_min(#nO * 32 + 8, 130); if isO then Tween(w, 0.4, {Size = U2(1, 0, 0, tH)}) end
                     if not opt.Multiple then local fnd = false; for _, o in ipairs(opt.Options) do if o == sel.single then fnd = true break end end; if not fnd then sel.single = nil end end; uT()
                     for _, op in ipairs(opt.Options) do
                         local isS = opt.Multiple and sel[op] or (sel.single == op)
-                        local b = Make("TextButton", {Size = U2(1, 0, 0, 30), Text = "  " .. tostring(op), TextColor3 = isS and C_BLK or C_GRY, TextXAlignment = 0, ZIndex = 3, BackgroundTransparency = 1}, l); Corner(b, 6); if not opt.Multiple and isS then aO = b end
-                        Connect(b.MouseEnter, function() Tween(b, 0.2, {TextColor3 = C_BLK}) end); Connect(b.MouseLeave, function() Tween(b, 0.2, {TextColor3 = (opt.Multiple and sel[op] or (sel.single == op)) and C_BLK or C_GRY}) end)
-                        Connect(b.MouseButton1Click, function()
-                            if opt.Multiple then sel[op] = not sel[op]; Tween(b, 0.3, {TextColor3 = sel[op] and C_BLK or C_GRY})
-                            else sel.single = op; tgl(); if aO and aO ~= b then Tween(aO, 0.3, {TextColor3 = C_GRY}) end; Tween(b, 0.3, {TextColor3 = C_BLK}); aO = b end
+                        local bbtn = Make("TextButton", {Size = U2(1, 0, 0, 30), Text = "  " .. tostring(op), TextColor3 = isS and C_BLK or C_GRY, TextXAlignment = 0, ZIndex = 3, BackgroundTransparency = 1}, l); Corner(bbtn, 6); if not opt.Multiple and isS then aO = bbtn end
+                        Connect(bbtn.MouseEnter, function() Tween(bbtn, 0.2, {TextColor3 = C_BLK}) end); Connect(bbtn.MouseLeave, function() Tween(bbtn, 0.2, {TextColor3 = (opt.Multiple and sel[op] or (sel.single == op)) and C_BLK or C_GRY}) end)
+                        Connect(bbtn.MouseButton1Click, function()
+                            if opt.Multiple then sel[op] = not sel[op]; Tween(bbtn, 0.3, {TextColor3 = sel[op] and C_BLK or C_GRY})
+                            else sel.single = op; tgl(); if aO and aO ~= bbtn then Tween(aO, 0.3, {TextColor3 = C_GRY}) end; Tween(bbtn, 0.3, {TextColor3 = C_BLK}); aO = bbtn end
                             uT(); if opt.Flag then Library.Flags[opt.Flag] = gV() end; if opt.Callback then opt.Callback(gV()) end
                         end)
                     end
@@ -347,125 +332,131 @@ function Library:CreateWindow(cfg)
 
             function SectionObj:CreateColorpicker(opt)
                 local H, S, V, A = (opt.Default or RGB(255,0,0)):ToHSV(); A = opt.DefaultAlpha or 0; if opt.Flag then Library.Flags[opt.Flag] = {hex = Color3.fromHSV(H,S,V):ToHex(), alpha = A} end
-                local wrap = Make("Frame", {Size = U2(1, 0, 0, 32), BackgroundTransparency = 1}, c)
-                Make("TextLabel", {Size = U2(1, -60, 0, 32), Text = opt.Name, TextXAlignment = 0}, wrap)
-                
+                local wrap = Make("Frame", {Size = U2(1, 0, 0, 32), BackgroundTransparency = 1}, c); Make("TextLabel", {Size = U2(1, -60, 0, 32), Text = opt.Name, TextXAlignment = 0}, wrap)
                 local mB = Make("TextButton", {Size = U2(0, 50, 0, 22), AnchorPoint = Vector2.new(1, 0.5), Position = U2(1, 0, 0, 16), BackgroundColor3 = Color3.fromHSV(H,S,V), BackgroundTransparency = 0, Text = "", ZIndex = 6}, wrap); Corner(mB, 6); Stroke(mB, 2)
                 local aP = Make("Frame", {Size = U2(1, 0, 1, 0), BackgroundColor3 = C_WHT, BackgroundTransparency = 1 - A, ZIndex = 2}, mB); Corner(aP, 6)
-                
                 local w = Make("Frame", {Size = U2(1, 0, 0, 0), Position = U2(0, 0, 0, 36), BackgroundColor3 = RGB(250,250,250), ClipsDescendants = true, ZIndex = 5}, wrap); Corner(w, 6); local str = Stroke(w, 2, C_BLK, 1)
                 
                 local isO = false; Connect(mB.MouseButton1Click, function() isO = not isO; Tween(w, 0.4, {Size = U2(1, 0, 0, isO and 175 or 0)}); Tween(str, 0.3, {Transparency = isO and 0 or 1}); Tween(wrap, 0.4, {Size = U2(1, 0, 0, isO and 215 or 32)}) end)
                 local pI = Make("Frame", {Size = U2(1, -12, 1, -12), Position = U2(0, 6, 0, 6), BackgroundTransparency = 1}, w)
-                local svM = Make("TextButton", {Size = U2(1, -25, 0, 100), BackgroundColor3 = Color3.fromHSV(H, 1, 1), BackgroundTransparency = 0, Text="", AutoButtonColor=false}, pI); Corner(svM, 6); Stroke(svM, 2)
-                local svI = Make("ImageLabel", {Size = U2(1, 0, 1, 0), BackgroundTransparency = 1, Image = "rbxassetid://4155801252"}, svM); Corner(svI, 6)
-                local svMrk = Make("Frame", {Size = U2(0, 10, 0, 10), AnchorPoint = Vector2.new(0.5, 0.5), Position = U2(S, 0, 1-V, 0), BackgroundColor3 = C_WHT}, svM); Corner(svMrk, 10); Stroke(svMrk, 2)
-                local hS = Make("TextButton", {Size = U2(0, 15, 0, 100), Position = U2(1, -15, 0, 0), BackgroundColor3 = C_WHT, BackgroundTransparency = 0, Text="", AutoButtonColor=false}, pI); Corner(hS, 4); Stroke(hS, 2)
-                Make("UIGradient", {Rotation = 90, Color = ColorSequence.new({ColorSequenceKeypoint.new(0, RGB(255,0,0)), ColorSequenceKeypoint.new(0.167, RGB(255,255,0)), ColorSequenceKeypoint.new(0.333, RGB(0,255,0)), ColorSequenceKeypoint.new(0.5, RGB(0,255,255)), ColorSequenceKeypoint.new(0.667, RGB(0,0,255)), ColorSequenceKeypoint.new(0.833, RGB(255,0,255)), ColorSequenceKeypoint.new(1, RGB(255,0,0))})}, hS)
-                local hMrk = Make("Frame", {Size = U2(1, 4, 0, 6), AnchorPoint = Vector2.new(0.5, 0.5), Position = U2(0.5, 0, H, 0), BackgroundColor3 = C_WHT}, hS); Corner(hMrk, 2); Stroke(hMrk, 2)
-                local aS = Make("TextButton", {Size = U2(1, 0, 0, 15), Position = U2(0, 0, 0, 110), BackgroundColor3 = C_WHT, BackgroundTransparency = 0, Text="", AutoButtonColor=false}, pI); Corner(aS, 4); Stroke(aS, 2)
-                local aBg = Make("Frame", {Size = U2(1,0,1,0), BackgroundColor3 = RGB(230, 230, 230)}, aS); Corner(aBg, 4)
-                local aFill = Make("Frame", {Size = U2(1,0,1,0), BackgroundColor3=C_WHT}, aS); Corner(aFill, 4)
-                local aG = Make("UIGradient", {Color = ColorSequence.new({ColorSequenceKeypoint.new(0, Color3.fromHSV(H,S,V)), ColorSequenceKeypoint.new(1, Color3.fromHSV(H,S,V))}), Transparency = NumberSequence.new(0, 1)}, aFill)
-                local aMrk = Make("Frame", {Size = U2(0, 6, 1, 4), AnchorPoint = Vector2.new(0.5, 0.5), Position = U2(A, 0, 0.5, 0), BackgroundColor3 = C_WHT}, aS); Corner(aMrk, 2); Stroke(aMrk, 2)
-
-                local rgbW = Make("Frame", {Size = U2(1, 0, 0, 24), Position = U2(0, 0, 0, 135), BackgroundTransparency = 1}, pI)
-                Make("UIListLayout", {FillDirection = Enum.FillDirection.Horizontal, Padding = U1(0, 6), HorizontalAlignment = Enum.HorizontalAlignment.Center}, rgbW)
+                local svM = Make("TextButton", {Size = U2(1, -25, 0, 100), BackgroundColor3 = Color3.fromHSV(H, 1, 1), BackgroundTransparency = 0, Text="", AutoButtonColor=false}, pI); Corner(svM, 6); Stroke(svM, 2); Make("ImageLabel", {Size = U2(1, 0, 1, 0), BackgroundTransparency = 1, Image = "rbxassetid://4155801252"}, svM); local svMrk = Make("Frame", {Size = U2(0, 10, 0, 10), AnchorPoint = Vector2.new(0.5, 0.5), Position = U2(S, 0, 1-V, 0), BackgroundColor3 = C_WHT}, svM); Corner(svMrk, 10); Stroke(svMrk, 2)
+                local hS = Make("TextButton", {Size = U2(0, 15, 0, 100), Position = U2(1, -15, 0, 0), BackgroundColor3 = C_WHT, BackgroundTransparency = 0, Text="", AutoButtonColor=false}, pI); Corner(hS, 4); Stroke(hS, 2); Make("UIGradient", {Rotation = 90, Color = ColorSequence.new({ColorSequenceKeypoint.new(0, RGB(255,0,0)), ColorSequenceKeypoint.new(0.167, RGB(255,255,0)), ColorSequenceKeypoint.new(0.333, RGB(0,255,0)), ColorSequenceKeypoint.new(0.5, RGB(0,255,255)), ColorSequenceKeypoint.new(0.667, RGB(0,0,255)), ColorSequenceKeypoint.new(0.833, RGB(255,0,255)), ColorSequenceKeypoint.new(1, RGB(255,0,0))})}, hS); local hMrk = Make("Frame", {Size = U2(1, 4, 0, 6), AnchorPoint = Vector2.new(0.5, 0.5), Position = U2(0.5, 0, H, 0), BackgroundColor3 = C_WHT}, hS); Corner(hMrk, 2); Stroke(hMrk, 2)
+                local aS = Make("TextButton", {Size = U2(1, 0, 0, 15), Position = U2(0, 0, 0, 110), BackgroundColor3 = C_WHT, BackgroundTransparency = 0, Text="", AutoButtonColor=false}, pI); Corner(aS, 4); Stroke(aS, 2); Make("Frame", {Size = U2(1,0,1,0), BackgroundColor3 = RGB(230, 230, 230)}, aS); local aFill = Make("Frame", {Size = U2(1,0,1,0), BackgroundColor3=C_WHT}, aS); local aG = Make("UIGradient", {Color = ColorSequence.new({ColorSequenceKeypoint.new(0, Color3.fromHSV(H,S,V)), ColorSequenceKeypoint.new(1, Color3.fromHSV(H,S,V))}), Transparency = NumberSequence.new(0, 1)}, aFill); local aMrk = Make("Frame", {Size = U2(0, 6, 1, 4), AnchorPoint = Vector2.new(0.5, 0.5), Position = U2(A, 0, 0.5, 0), BackgroundColor3 = C_WHT}, aS); Corner(aMrk, 2); Stroke(aMrk, 2)
+                local rgbW = Make("Frame", {Size = U2(1, 0, 0, 24), Position = U2(0, 0, 0, 135), BackgroundTransparency = 1}, pI); Make("UIListLayout", {FillDirection = Enum.FillDirection.Horizontal, Padding = U1(0, 6), HorizontalAlignment = Enum.HorizontalAlignment.Center}, rgbW)
                 
-                local rbs = {} 
-                for i=1,3 do local bf = Make("Frame", {Size=U2(0.333, -5, 1, 0), BackgroundColor3=C_WHT}, rgbW); Corner(bf, 4); Stroke(bf, 2); rbs[i] = Make("TextBox", {Size=U2(1, 0, 1, 0), Position=U2(0, 0, 0, 0), Text="", ClearTextOnFocus=false, TextXAlignment = Enum.TextXAlignment.Center}, bf) end
-                
+                local rbs = {}; for i=1,3 do local bf = Make("Frame", {Size=U2(0.333, -5, 1, 0), BackgroundColor3=C_WHT}, rgbW); Corner(bf, 4); Stroke(bf, 2); rbs[i] = Make("TextBox", {Size=U2(1, 0, 1, 0), Position=U2(0, 0, 0, 0), Text="", ClearTextOnFocus=false, TextXAlignment = Enum.TextXAlignment.Center}, bf) end
                 local function uVis()
                     local rC = Color3.fromHSV(H, S, V); Tween(mB, 0.2, {BackgroundColor3 = rC}); Tween(aP, 0.2, {BackgroundTransparency = 1 - A}); Tween(svM, 0.2, {BackgroundColor3 = Color3.fromHSV(H, 1, 1)})
-                    aG.Color = ColorSequence.new({ColorSequenceKeypoint.new(0, rC), ColorSequenceKeypoint.new(1, rC)})
-                    if not rbs[1]:IsFocused() then rbs[1].Text = tostring(m_floor(rC.R * 255)) end; if not rbs[2]:IsFocused() then rbs[2].Text = tostring(m_floor(rC.G * 255)) end; if not rbs[3]:IsFocused() then rbs[3].Text = tostring(m_floor(rC.B * 255)) end
+                    aG.Color = ColorSequence.new({ColorSequenceKeypoint.new(0, rC), ColorSequenceKeypoint.new(1, rC)}); if not rbs[1]:IsFocused() then rbs[1].Text = tostring(m_floor(rC.R * 255)) end; if not rbs[2]:IsFocused() then rbs[2].Text = tostring(m_floor(rC.G * 255)) end; if not rbs[3]:IsFocused() then rbs[3].Text = tostring(m_floor(rC.B * 255)) end
                     if opt.Flag then Library.Flags[opt.Flag] = {hex = rC:ToHex(), alpha = A} end; if opt.Callback then opt.Callback(rC, A) end
                 end
                 uVis()
-
                 local act = nil
                 local function hndl(i, t)
                     if t=="sv" then S, V = m_clamp((i.Position.X - svM.AbsolutePosition.X)/svM.AbsoluteSize.X, 0, 1), 1 - m_clamp((i.Position.Y - svM.AbsolutePosition.Y)/svM.AbsoluteSize.Y, 0, 1); svMrk.Position = U2(S, 0, 1-V, 0)
                     elseif t=="h" then H = m_clamp((i.Position.Y - hS.AbsolutePosition.Y)/hS.AbsoluteSize.Y, 0, 1); hMrk.Position = U2(0.5, 0, H, 0)
-                    elseif t=="a" then A = m_clamp((i.Position.X - aS.AbsolutePosition.X)/aS.AbsoluteSize.X, 0, 1); aMrk.Position = U2(A, 0, 0.5, 0) end
-                    uVis()
+                    elseif t=="a" then A = m_clamp((i.Position.X - aS.AbsolutePosition.X)/aS.AbsoluteSize.X, 0, 1); aMrk.Position = U2(A, 0, 0.5, 0) end; uVis()
                 end
                 for k, v in pairs({sv={svM, "sv"}, h={hS, "h"}, a={aS, "a"}}) do Connect(v[1].InputBegan, function(i) if isClk(i) then act = v[2]; hndl(i, v[2]) end end) end
                 Connect(UIS.InputEnded, function(i) if isClk(i) then act = nil end end); Connect(UIS.InputChanged, function(i) if act and (i.UserInputType == UIT.MouseMovement or i.UserInputType == UIT.Touch) then hndl(i, act) end end)
-                
                 local function oRgbC()
-                    local r, g, b = tonumber(rbs[1].Text) or m_floor(Color3.fromHSV(H,S,V).R*255), tonumber(rbs[2].Text) or m_floor(Color3.fromHSV(H,S,V).G*255), tonumber(rbs[3].Text) or m_floor(Color3.fromHSV(H,S,V).B*255)
-                    H, S, V = Color3.fromRGB(m_clamp(r,0,255), m_clamp(g,0,255), m_clamp(b,0,255)):ToHSV()
+                    local r, g, b = tonumber(rbs[1].Text) or m_floor(Color3.fromHSV(H,S,V).R*255), tonumber(rbs[2].Text) or m_floor(Color3.fromHSV(H,S,V).G*255), tonumber(rbs[3].Text) or m_floor(Color3.fromHSV(H,S,V).B*255); H, S, V = Color3.fromRGB(m_clamp(r,0,255), m_clamp(g,0,255), m_clamp(b,0,255)):ToHSV()
                     Tween(svMrk, 0.3, {Position = U2(S, 0, 1-V, 0)}); Tween(hMrk, 0.3, {Position = U2(0.5, 0, H, 0)}); uVis()
                 end
                 for i=1,3 do Connect(rbs[i].FocusLost, oRgbC) end
-                local function setV(v) if type(v) == "table" and v.hex then local ok, c = pcall(function() return Color3.fromHex(v.hex) end); if ok and c then H, S, V, A = c:ToHSV(); A = tonumber(v.alpha) or 0; Tween(svMrk, 0.3, {Position = U2(S, 0, 1 - V, 0)}); Tween(hMrk, 0.3, {Position = U2(0.5, 0, H, 0)}); Tween(aMrk, 0.3, {Position = U2(A, 0, 0.5, 0)}); uVis() end end end
+                local function setV(v) if type(v) == "table" and v.hex then local ok, col = pcall(function() return Color3.fromHex(v.hex) end); if ok and col then H, S, V, A = col:ToHSV(); A = tonumber(v.alpha) or 0; Tween(svMrk, 0.3, {Position = U2(S, 0, 1 - V, 0)}); Tween(hMrk, 0.3, {Position = U2(0.5, 0, H, 0)}); Tween(aMrk, 0.3, {Position = U2(A, 0, 0.5, 0)}); uVis() end end end
                 if opt.Flag then Library.Elements[opt.Flag] = {SetValue = setV} end
             end
-
             return SectionObj
         end
         return TabObj
+    end
+
+    -- ВСТРОЕННАЯ ВКЛАДКА ИНФОРМАЦИИ (INFO)
+    function Window:CreateInfoTab(cfg)
+        cfg = cfg or {}
+        local TabObj = self:CreateTab(cfg.TabName or "INFO")
+        local p = TabObj.Page
+        for _, v in ipairs(p:GetChildren()) do if v:IsA("ScrollingFrame") then v:Destroy() end end -- Удаляем колонки по умолчанию
+        
+        local elements = { Media = {} }
+        
+        local bnr = Make("ImageLabel", {Size = U2(1, -40, 0, 90), Position = U2(0, 20, 0, 10), BackgroundColor3 = C_WHT, ScaleType = Enum.ScaleType.Crop}, p); Corner(bnr, 12); Stroke(bnr, 3)
+        local avt = Make("ImageLabel", {Size = U2(0, 90, 0, 90), Position = U2(0, 40, 0, 55), BackgroundColor3 = C_WHT}, p); Corner(avt, 45); Stroke(avt, 3)
+        
+        elements.Banner = bnr; elements.Avatar = avt
+        
+        Make("TextLabel", {Size = U2(0, 200, 0, 25), Position = U2(0, 145, 0, 105), Text = "Developer: " .. (cfg.Developer or "Unknown"), TextSize = 20, TextXAlignment = 0}, p)
+        Make("TextLabel", {Size = U2(0, 200, 0, 20), Position = U2(0, 145, 0, 130), Text = "Version " .. (cfg.Version or "1.0.0"), TextSize = 16, TextColor3 = RGB(80,80,80), TextXAlignment = 0}, p)
+        
+        local lgBox = Make("Frame", {Size = U2(0, 280, 0, 85), Position = U2(0, 20, 0, 155), BackgroundColor3 = C_WHT}, p); Corner(lgBox, 12); Stroke(lgBox, 3)
+        Make("TextLabel", {Size = U2(1, -10, 0, 20), Position = U2(0, 10, 0, 5), Text = "WHAT'S NEW:", TextSize = 15, TextXAlignment = 0}, lgBox)
+        local lgScr = Make("ScrollingFrame", {Size = U2(1, -10, 1, -30), Position = U2(0, 5, 0, 25), BackgroundTransparency = 1, ScrollBarThickness = 0, CanvasSize = U2(0,0,0,0)}, lgBox)
+        Make("UIPadding", {PaddingTop = U1(0, 4), PaddingBottom = U1(0, 15), PaddingLeft = U1(0, 5)}, lgScr)
+        local lg_layout = Make("UIListLayout", {Padding = U1(0, 6)}, lgScr)
+        Connect(lg_layout:GetPropertyChangedSignal("AbsoluteContentSize"), function() lgScr.CanvasSize = U2(0, 0, 0, m_ceil(lg_layout.AbsoluteContentSize.Y) + 20) end)
+
+        for _, l in ipairs(cfg.Changelog or {}) do Make("TextLabel", {Size = U2(1, 0, 0, 0), Text = l.Text, TextColor3 = l.Color or C_BLK, TextXAlignment = 0, TextWrapped = true, AutomaticSize = 2}, lgScr) end
+        Make("TextLabel", {Size = U2(0, 120, 0, 25), Position = U2(1, -165, 0, 125), Text = "MEDIA", TextSize = 22}, p)
+        
+        local function MBtn(pos, txt, url) 
+            local b = Make("ImageButton", {Size = U2(0, 65, 0, 65), Position = pos, BackgroundColor3 = C_WHT}, p); Corner(b, 10); Stroke(b, 3); 
+            local st = {h=false,p=false}; local function upd() b.BackgroundColor3 = st.p and C_PRS or (st.h and C_HOV or C_WHT) end
+            Connect(b.MouseEnter, function() st.h = true; upd() end); Connect(b.MouseLeave, function() st.h, st.p = false, false; upd() end)
+            Connect(b.InputBegan, function(i) if isClk(i) then st.p = true; upd() end end); Connect(b.InputEnded, function(i) if isClk(i) then st.p = false; upd() end end)
+            Connect(b.MouseButton1Click, function() if setclipboard then pcall(setclipboard, url); Library:Notify(txt.." COPIED!") end end)
+            return b 
+        end
+        
+        local mX = -90
+        if cfg.Links then
+            for i = #cfg.Links, 1, -1 do
+                local link = cfg.Links[i]
+                elements.Media[link.Title] = MBtn(U2(1, mX, 0, 160), link.Title, link.Url)
+                mX = mX - 75
+            end
+        end
+        return elements
     end
 
     function Window:CreateConfigSystem(parentTab, side)
         local cbx = parentTab:CreateSection("CONFIGURATIONS", side)
         local ci = cbx:CreateInput({Name = "Config Name", Default = ""})
         local cd = cbx:CreateDropdown({Name = "Select Config", Options = Library:GetConfigs(), Multiple = false})
-        
         cbx:CreateButton({Name = "Save Config", Callback = function() 
             local n=ci.GetValue(); if n=="" then return Library:Notify("Enter name!") end
-            if SafeCall(writefile, Library:CfgPath(n), HS:JSONEncode(Library.Flags)) then 
-                Library:Notify("Saved: "..n); cd.Refresh(Library:GetConfigs()); cd.SetValue(n); ci.SetValue("") 
-            else Library:Notify("Save error") end 
+            if SafeCall(writefile, Library:CfgPath(n), HS:JSONEncode(Library.Flags)) then Library:Notify("Saved: "..n); cd.Refresh(Library:GetConfigs()); cd.SetValue(n); ci.SetValue("") else Library:Notify("Save error") end 
         end})
-        
         cbx:CreateButton({Name = "Load Config", Callback = function() 
             local n=cd.GetValue(); if not n or n=="" or n=="None" then return Library:Notify("Select config!") end
             local ok, r = SafeCall(readfile, Library:CfgPath(n)); 
-            if ok then 
-                local ok2, dt = pcall(function() return HS:JSONDecode(r) end)
-                if ok2 and type(dt)=="table" then for f, v in pairs(dt) do if Library.Elements[f] then Library.Elements[f].SetValue(v) end end; Library:Notify("Loaded: "..n) else Library:Notify("Parse fail") end 
-            else Library:Notify("Load fail") end 
+            if ok then local ok2, dt = pcall(function() return HS:JSONDecode(r) end); if ok2 and type(dt)=="table" then for f, v in pairs(dt) do if Library.Elements[f] then Library.Elements[f].SetValue(v) end end; Library:Notify("Loaded: "..n) else Library:Notify("Parse fail") end else Library:Notify("Load fail") end 
         end})
-        
         cbx:CreateButton({Name = "Delete Config", Callback = function() 
             local n=cd.GetValue(); if not n or n=="" or n=="None" then return Library:Notify("Select config!") end
             if SafeCall(delfile, Library:CfgPath(n)) then Library:Notify("Deleted: "..n); cd.SetValue(nil); cd.Refresh(Library:GetConfigs()) else Library:Notify("Delete fail") end 
         end})
     end
 
-    -- Click Effect logic
     local function SpawnClickEffect(pos, isMouse)
         if not sg or not sg.Parent then return end
         local x, y = pos.X, pos.Y
         if isMouse then local mLoc = UIS:GetMouseLocation(); x, y = mLoc.X, mLoc.Y else local inset, _ = GS:GetGuiInset(); y = y + inset.Y end
-        local ring = Make("Frame", {Size = U2(0, 0, 0, 0), Position = U2(0, x, 0, y), AnchorPoint = Vector2.new(0.5, 0.5), BackgroundTransparency = 1, ZIndex = 5000}, sg); Corner(ring, U1(1, 0))
-        local ringStroke = Stroke(ring, 3, C_BLK)
-        Tween(ring, 0.35, {Size = U2(0, 45, 0, 45)}, ES.Quint, ED.Out); Tween(ringStroke, 0.35, {Transparency = 1}, ES.Quint, ED.Out)
-        task.delay(0.35, function() if ring then ring:Destroy() end end)
-        local baseRot = math.random(0, 360)
+        local ring = Make("Frame", {Size = U2(0, 0, 0, 0), Position = U2(0, x, 0, y), AnchorPoint = Vector2.new(0.5, 0.5), BackgroundTransparency = 1, ZIndex = 5000}, sg); Corner(ring, U1(1, 0)); local ringStroke = Stroke(ring, 3, C_BLK)
+        Tween(ring, 0.35, {Size = U2(0, 45, 0, 45)}, ES.Quint, ED.Out); Tween(ringStroke, 0.35, {Transparency = 1}, ES.Quint, ED.Out); task.delay(0.35, function() if ring then ring:Destroy() end end)
         for i = 1, 6 do
-            local angle = baseRot + (i * 60) + math.random(-15, 15); local rad = math.rad(angle)
-            local speed, strokeLength, thickness = math.random(25, 45), math.random(10, 20), math.random(2, 4)
-            local line = Make("Frame", {Size = U2(0, thickness, 0, strokeLength), Position = U2(0, x, 0, y), AnchorPoint = Vector2.new(0.5, 1), Rotation = angle, BackgroundColor3 = C_BLK, ZIndex = 5000}, sg); Corner(line, U1(1, 0))
-            local targetX, targetY = x + math.sin(rad) * speed, y - math.cos(rad) * speed
-            Tween(line, 0.35, {Position = U2(0, targetX, 0, targetY), Size = U2(0, 0, 0, 0)}, ES.Quint, ED.Out)
-            task.delay(0.35, function() if line then line:Destroy() end end)
+            local angle = math.random(0, 360) + (i * 60) + math.random(-15, 15); local rad = math.rad(angle)
+            local speed, length, th = math.random(25, 45), math.random(10, 20), math.random(2, 4)
+            local line = Make("Frame", {Size = U2(0, th, 0, length), Position = U2(0, x, 0, y), AnchorPoint = Vector2.new(0.5, 1), Rotation = angle, BackgroundColor3 = C_BLK, ZIndex = 5000}, sg); Corner(line, U1(1, 0))
+            Tween(line, 0.35, {Position = U2(0, x + math.sin(rad) * speed, 0, y - math.cos(rad) * speed), Size = U2(0, 0, 0, 0)}, ES.Quint, ED.Out); task.delay(0.35, function() if line then line:Destroy() end end)
         end
     end
 
-    Connect(UIS.InputBegan, function(i)
-        if isClk(i) and Library.Flags["Toggle_ClickEffect"] then
-            SpawnClickEffect(i.Position, i.UserInputType == UIT.MouseButton1)
-        end
-    end)
-
-    MakeDraggable(dBar, mFrame)
-    local isTDr = MakeDraggable(tBtn, tFrame)
+    Connect(UIS.InputBegan, function(i) if isClk(i) and Library.Flags["Toggle_ClickEffect"] then SpawnClickEffect(i.Position, i.UserInputType == UIT.MouseButton1) end end)
+    MakeDraggable(dBar, mFrame); local isTDr = MakeDraggable(tBtn, tFrame)
     Connect(tBtn.InputEnded, function(i) if isClk(i) and tFrame.Visible then task.defer(function() if not isTDr() then ToggleMenu(true) end end) end end)
 
-    function Window:Init(assets)
+    function Window:Init(assets, onReadyCallback)
         assets = assets or {}
         local loadedAssets = {}
         task.spawn(function()
@@ -476,18 +467,17 @@ function Library:CreateWindow(cfg)
                 if cs then if not pcall(isfile, a.f) or not isfile(a.f) then local s, d = pcall(game.HttpGet, game, a.u); if s and d then pcall(writefile, a.f, d) end end; local s, r = pcall(getcustomasset, a.f); if s then img = r end end
                 loadedAssets[a.n] = img; lText.Text = "CHECKING FILES... " .. m_floor((i / #assets) * 100) .. "%"; Tween(bFill, 0.3, {Size = U2(i/#assets, 0, 1, 0)}); task.wait(0.1)
             end
-            if loadedAssets.avatar then tImg.Image = loadedAssets.avatar end
+            
+            if onReadyCallback then onReadyCallback(loadedAssets) end
+            
             task.wait(0.2)
             Tween(lFrame, 0.35, {Position = U2(0.5, 0, -0.5, 0)}, ES.Quint, ED.In).Completed:Connect(function()
                 lFrame:Destroy(); mFrame.Visible = true; mFrame.Position = U2(0.5, 0, 1.5, 0)
-                
-                -- Открываем первую вкладку
                 if Window.CurrentTab and Window.Tabs[Window.CurrentTab] then
                     Window.Tabs[Window.CurrentTab].page.Visible = true
                     Window.Tabs[Window.CurrentTab].btn.BackgroundColor3 = C_BLK
                     Window.Tabs[Window.CurrentTab].btn.TextColor3 = C_WHT
                 end
-                
                 Tween(mFrame, 0.55, {Position = sMPos}, ES.Back, ED.Out)
             end)
         end)
