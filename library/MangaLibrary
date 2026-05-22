@@ -139,20 +139,26 @@ function Library:CreateWindow(cfg)
     Connect(Make("TextButton", {Size = U2(0, 30, 0, 30), Position = U2(1, -75, 0, 5), Text = "—", TextSize = 24, ZIndex = 16}, mFrame).MouseButton1Click, function() ToggleMenu(false) end)
     Connect(Make("TextButton", {Size = U2(0, 30, 0, 30), Position = U2(1, -40, 0, 5), Text = "✖", TextSize = 24, ZIndex = 16}, mFrame).MouseButton1Click, function() if not isCls then isCls=true; Tween(mFrame, 0.35, {Position = U2(mFrame.Position.X.Scale, mFrame.Position.X.Offset, 1.5, mFrame.Position.Y.Offset)}, ES.Quint, ED.In).Completed:Connect(function() sg:Destroy() end) end end)
 
-    local cFrame = Make("Frame", {Size = U2(1, 0, 1, -105), Position = U2(0, 0, 0, 40), BackgroundTransparency = 1, ClipsDescendants = true, ZIndex = 5}, mFrame)
-    local bBar = Make("Frame", {Size = U2(1, 0, 0, 65), Position = U2(0, 0, 1, -65), BackgroundTransparency = 1, ZIndex = 5}, mFrame)
+    -- ИСПРАВЛЕНИЕ БАГА С ВКЛАДКАМИ:
+    -- Уменьшаем cFrame на 10px, чтобы дать больше места нижней панели (было -105, стало -115)
+    local cFrame = Make("Frame", {Size = U2(1, 0, 1, -115), Position = U2(0, 0, 0, 40), BackgroundTransparency = 1, ClipsDescendants = true, ZIndex = 5}, mFrame)
+    -- Увеличиваем высоту нижней панели на 10px (было 65, стало 75)
+    local bBar = Make("Frame", {Size = U2(1, 0, 0, 75), Position = U2(0, 0, 1, -75), BackgroundTransparency = 1, ZIndex = 5}, mFrame)
     Make("Frame", {Size = U2(1, 0, 0, 3), BackgroundColor3 = C_BLK}, bBar)
     
     -- КОНТЕЙНЕР ВКЛАДОК
     local tCont = Make("ScrollingFrame", {
-        Size = U2(1, -40, 1, -3), Position = U2(0, 20, 0, 3), 
+        -- Выравниваем контейнер вкладок с небольшими отступами
+        Size = U2(1, -40, 1, -8), Position = U2(0, 20, 0, 5), 
         BackgroundTransparency = 1, ScrollBarThickness = 0, 
-        CanvasSize = U2(0,0,0,0), ScrollingDirection = Enum.ScrollingDirection.X, ClipsDescendants = true
+        -- Устанавливаем CanvasSize по оси Y в 1 (Scale) чтобы обводка не обрезалась
+        CanvasSize = U2(0,0,1,0), ScrollingDirection = Enum.ScrollingDirection.X, ClipsDescendants = true
     }, bBar)
     
     -- Выравнивание по левому краю для корректного скролла
     local tLayout = Make("UIListLayout", {FillDirection = Enum.FillDirection.Horizontal, VerticalAlignment = Enum.VerticalAlignment.Center, HorizontalAlignment = Enum.HorizontalAlignment.Left, Padding = U1(0, 10)}, tCont)
-    Connect(tLayout:GetPropertyChangedSignal("AbsoluteContentSize"), function() tCont.CanvasSize = U2(0, tLayout.AbsoluteContentSize.X, 0, 0) end)
+    -- Обновляем только ось X, оставляем Y = 1 (Scale)
+    Connect(tLayout:GetPropertyChangedSignal("AbsoluteContentSize"), function() tCont.CanvasSize = U2(0, tLayout.AbsoluteContentSize.X, 1, 0) end)
     
     -- Скролл горизонтальных вкладок колесиком мыши
     Connect(tCont.InputChanged, function(input)
