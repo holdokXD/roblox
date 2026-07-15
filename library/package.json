@@ -1,1 +1,12 @@
-
+{
+  "name": "onion-evade-backend",
+  "version": "1.0.0",
+  "description": "Backend for Onion Evade Hub Admin Panel",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2"
+  }
+}
