@@ -2,10 +2,10 @@ const express = require('express');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-app.use(express.json({ limit: '1mb' }));
+app.use(express.json({ limit: '5mb' }));
 
-let db = {
-    all_users_table: {}
+let database = {
+    all_users_table: {} 
 };
 
 app.use((req, res, next) => {
@@ -19,8 +19,8 @@ app.get('/', (req, res) => {
 
 app.get('/get/:key', (req, res) => {
     const key = req.params.key;
-    if (db[key]) {
-        return res.status(200).json(db[key]);
+    if (database[key] !== undefined) {
+        return res.status(200).json(database[key]);
     }
     return res.status(200).json({});
 });
@@ -28,10 +28,10 @@ app.get('/get/:key', (req, res) => {
 app.post('/set/:key', (req, res) => {
     const key = req.params.key;
     if (req.body) {
-        db[key] = req.body;
+        database[key] = req.body;
         return res.status(200).json({ success: true });
     }
-    return res.status(400).json({ error: 'Invalid or empty body' });
+    return res.status(400).json({ error: 'Empty or invalid body' });
 });
 
 app.listen(PORT, () => {
